@@ -51,15 +51,16 @@ struct Sphere {
         float3 current_trans = trans + vel * ticks;
         float dist = length(make_float2(cam_trans.x - current_trans.x, cam_trans.y - current_trans.y));
         if (dist < radius) {
+            float3 tmp_RGB;
             float dz = sqrtf(radius * radius - dist * dist);
-            *n = RGB * 255 * dz / radius;
+            tmp_RGB = RGB * 255 * dz / radius + ticks * MAX_VEL;
+            *n = make_float3((int)tmp_RGB.x % 255, (int)tmp_RGB.y % 255, (int)tmp_RGB.z % 255);
             return current_trans.z + dz;
         }
 
         return -INF;
     }
 };
-
 
 // globals needed by the update routine
 struct DataBlock {
@@ -70,6 +71,17 @@ struct DataBlock {
     float totalTime;
     float frames; 
 };
+
+
+
+__global__ void radius_kernel() {
+    int seed = threadIdx.x % SPHERES;
+    float newRadius = 1.1 * dev_s[seed].radius;
+    float newRadius_sec = newRadius - MAX_RADIUS;
+    dev_s[seed].radius = newRadius > MAX_RADIUS ? 
+                        (newRadius_sec < MIN_RADIUS ? newRadius_sec + MIN_RADIUS : newRadius_sec) 
+                        : newRadius;
+}
 
 
 __global__ void kernel(Sphere* dev_s, unsigned char *ptr, int ticks) {
@@ -108,7 +120,9 @@ void anim_gpu(DataBlock *d, int ticks) {
     dim3 blocks(DIM/THREAD_NUM, DIM/THREAD_NUM);
     dim3 threads(THREAD_NUM, THREAD_NUM);
     CPUAnimBitmap *bitmap = d->bitmap;
-
+    
+    /* change radius */
+    radius_kernel<<<blocks, threads>>>();
     kernel<<<blocks, threads>>>(d->dev_s, d->dev_bitmap, ticks);
     // copy our bitmap back from the GPU for display
     HANDLE_ERROR(cudaMemcpy(bitmap->get_ptr(), 

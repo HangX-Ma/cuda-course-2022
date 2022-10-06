@@ -28,66 +28,89 @@
 
 #define SPHERES 10
 #define DIM (1024)
+#define EDGE_DIM (500)
 #define THREAD_NUM (32)
 #define MAX_VEL (20.0f)
+#define MAX_RADIUS (70)
+#define MIN_RADIUS (30)
 #define INF 2e10f
 #define rnd(x) ((float)x*rand()/RAND_MAX)
 
-#define NORMAL 1
+// #define NORMAL 1
 // #define RUN_THROUGH 1
-// #define REBOUND 1
+#define REBOUND 1
 
 struct Sphere {
     float3 RGB;
     float3 trans;
     float3 vel;
     float radius;
+    bool ifReverseVelDir;
 
     __host__ void init() {
         RGB = make_float3(rnd(1.0f), rnd(1.0f), rnd(1.0f));
-        trans = make_float3(rnd(DIM) - DIM/2, rnd(DIM) - DIM / 2, rnd(DIM) - DIM / 2);
-        vel = make_float3(rnd(MAX_VEL) - MAX_VEL/2, rnd(MAX_VEL) - MAX_VEL / 2, 0);
-        radius = rnd(40.0f) + 30;
+        trans = make_float3(rnd(EDGE_DIM*2) - EDGE_DIM, rnd(EDGE_DIM*2) - EDGE_DIM, rnd(EDGE_DIM*2) - EDGE_DIM);
+        vel = make_float3(rnd(MAX_VEL) - MAX_VEL / 2, rnd(MAX_VEL) - MAX_VEL / 2, 0);
+        radius = rnd(40.0f) + MIN_RADIUS;
     }
 
     __device__ float hit(float2 cam_trans, float3 *n, int ticks) {
-        int x, y;
         float3 curr_trans;
 
-        // #if NORMAL
-            curr_trans = trans + vel * ticks;
-        // #else
-        // float3 tmp_trans = trans + vel * ticks;
-        // x = (int)(tmp_trans.x + DIM/2);
-        // y = (int)(tmp_trans.y + DIM/2);
+        #if NORMAL
+        curr_trans = trans + vel * ticks;
+        #else
+        float x, y;
+        char2 ifReverse = make_char2(0, 0);
+        float3 tmp_trans = trans + vel * ticks;
 
-        // #if RUN_THROUGH
-        // curr_trans = make_float3((x % DIM) - DIM/2, 
-        //                          (y % DIM) - DIM/2, 
-        //                          0);
-        // #endif
+        /*  */
+        if (tmp_trans.x < 0) {
+            tmp_trans.x = -tmp_trans.x;
+            ifReverse.x = 1;
+        }
 
-        // #if REBOUND
-        // if ((int)(x/DIM) % 2 == 0) {
-        //     x = (x % DIM) - DIM/2;
-        // } else {
-        //     x = DIM/2 - (x % DIM);
-        // }
+        if (tmp_trans.y < 0) {
+            tmp_trans.y = -tmp_trans.y;
+            ifReverse.y = 1;
+        }
 
-        // if ((int)(y/DIM) % 2 == 0) {
-        //     y = (y % DIM) - DIM/2;
-        // } else {
-        //     y = DIM/2 - (y % DIM);
-        // }
-        // curr_trans = make_float3(x, y, 0);
-        // #endif
+        x = tmp_trans.x + EDGE_DIM;
+        y = tmp_trans.y + EDGE_DIM;
 
-        // #endif
+        #if RUN_THROUGH
+        curr_trans = make_float3(((int)x % DIM) - EDGE_DIM, 
+                                 ((int)y % DIM) - EDGE_DIM, 
+                                 0);
+        #endif
+
+        #if REBOUND
+        if ((int)(x / DIM) % 2 == 0) {
+            x = (int)x % DIM - EDGE_DIM;
+        } else {
+            x = DIM - (int)x % DIM - EDGE_DIM;
+        }
+
+        if ((int)(y / DIM) % 2 == 0) {
+            y = (int)y % DIM - EDGE_DIM;
+        } else {
+            y = DIM - (int)y % DIM - EDGE_DIM;
+        }
+
+        if (ifReverse.x == 1) x = -x;
+        if (ifReverse.y == 1) y = -y;
+
+        curr_trans = make_float3(x, y, 0);
+        #endif
+
+        #endif
 
         float dist = length(make_float2(cam_trans.x - curr_trans.x, cam_trans.y - curr_trans.y));
         if (dist < radius) {
+            float3 tmp_RGB;
             float dz = sqrtf(radius * radius - dist * dist);
-            *n = RGB * 255 * dz / radius;
+            tmp_RGB = RGB * 255 * dz / radius + ticks * MAX_VEL;
+            *n = make_float3((int)tmp_RGB.x % 255, (int)tmp_RGB.y % 255, (int)tmp_RGB.z % 255);
             return curr_trans.z + dz;
         }
 
@@ -108,19 +131,29 @@ __global__ void kernel(unsigned char *ptr, int ticks) {
     float3 RGB = make_float3(0, 0, 0);
     float2 cam_trans = make_float2(ox, oy);
     float   maxz = -INF;
-    for(int i=0; i < SPHERES; i++) {
+    for(int i = 0; i < SPHERES; i++) {
         float3 n;
         float z = dev_s[i].hit(cam_trans, &n, ticks);
         if (z > maxz) {
             RGB = n;
             maxz = z;
         }
-    } 
+    }
 
     ptr[offset*4 + 0] = (int)(RGB.x);
     ptr[offset*4 + 1] = (int)(RGB.y);
     ptr[offset*4 + 2] = (int)(RGB.z);
     ptr[offset*4 + 3] = 255;
+}
+
+
+__global__ void radius_kernel() {
+    int seed = threadIdx.x % SPHERES;
+    float newRadius = 1.1 * dev_s[seed].radius;
+    float newRadius_sec = newRadius - MAX_RADIUS;
+    dev_s[seed].radius = newRadius > MAX_RADIUS ? 
+                        (newRadius_sec < MIN_RADIUS ? newRadius_sec + MIN_RADIUS : newRadius_sec) 
+                        : newRadius;
 }
 
 
@@ -143,6 +176,9 @@ void anim_gpu(DataBlock *d, int ticks) {
     dim3 threads(THREAD_NUM,THREAD_NUM);
     CPUAnimBitmap *bitmap = d->bitmap;
 
+    /* change radius */
+    radius_kernel<<<blocks, threads>>>();
+    /* ray tracing */
     kernel<<<blocks, threads>>>(d->dev_bitmap, ticks);
     // copy our bitmap back from the GPU for display
     HANDLE_ERROR(cudaMemcpy(bitmap->get_ptr(), 
