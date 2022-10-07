@@ -27,35 +27,89 @@
 #include "helper_math.h"
 
 #define SPHERES 10
-#define DIM (1024.0f)
+#define DIM (1024)
+#define EDGE_DIM (500)
 #define THREAD_NUM (32)
 #define MAX_VEL (20.0f)
+#define MAX_RADIUS (70)
+#define MIN_RADIUS (30)
 #define INF 2e10f
 #define rnd(x) ((float)x*rand()/RAND_MAX)
 
+#define REBOUND 1
 
 struct Sphere {
     float3 RGB;
     float3 trans;
     float3 vel;
     float radius;
+    bool ifReverseVelDir;
 
     __host__ void init() {
         RGB = make_float3(rnd(1.0f), rnd(1.0f), rnd(1.0f));
-        trans = make_float3(rnd(DIM) - DIM/2, rnd(DIM) - DIM / 2, rnd(DIM) - DIM / 2);
-        vel = make_float3(rnd(MAX_VEL) - MAX_VEL/2, rnd(MAX_VEL) - MAX_VEL / 2, rnd(MAX_VEL) - MAX_VEL / 2);
-        radius = rnd(40.0f) + 30;
+        trans = make_float3(rnd(EDGE_DIM*2) - EDGE_DIM, rnd(EDGE_DIM*2) - EDGE_DIM, rnd(EDGE_DIM*2) - EDGE_DIM);
+        vel = make_float3(rnd(MAX_VEL) - MAX_VEL / 2, rnd(MAX_VEL) - MAX_VEL / 2, 0);
+        radius = rnd(40.0f) + MIN_RADIUS;
     }
 
     __device__ float hit(float2 cam_trans, float3 *n, int ticks) {
-        float3 current_trans = trans + vel * ticks;
-        float dist = length(make_float2(cam_trans.x - current_trans.x, cam_trans.y - current_trans.y));
+        float3 curr_trans;
+
+        #if NORMAL
+        curr_trans = trans + vel * ticks;
+        #else
+        float x, y;
+        char2 ifReverse = make_char2(0, 0);
+        float3 tmp_trans = trans + vel * ticks;
+
+        /*  */
+        if (tmp_trans.x < 0) {
+            tmp_trans.x = -tmp_trans.x;
+            ifReverse.x = 1;
+        }
+
+        if (tmp_trans.y < 0) {
+            tmp_trans.y = -tmp_trans.y;
+            ifReverse.y = 1;
+        }
+
+        x = tmp_trans.x + EDGE_DIM;
+        y = tmp_trans.y + EDGE_DIM;
+
+        #if RUN_THROUGH
+        curr_trans = make_float3(((int)x % DIM) - EDGE_DIM, 
+                                 ((int)y % DIM) - EDGE_DIM, 
+                                 0);
+        #endif
+
+        #if REBOUND
+        if ((int)(x / DIM) % 2 == 0) {
+            x = (int)x % DIM - EDGE_DIM;
+        } else {
+            x = DIM - (int)x % DIM - EDGE_DIM;
+        }
+
+        if ((int)(y / DIM) % 2 == 0) {
+            y = (int)y % DIM - EDGE_DIM;
+        } else {
+            y = DIM - (int)y % DIM - EDGE_DIM;
+        }
+
+        if (ifReverse.x == 1) x = -x;
+        if (ifReverse.y == 1) y = -y;
+
+        curr_trans = make_float3(x, y, 0);
+        #endif
+
+        #endif
+
+        float dist = length(make_float2(cam_trans.x - curr_trans.x, cam_trans.y - curr_trans.y));
         if (dist < radius) {
             float3 tmp_RGB;
             float dz = sqrtf(radius * radius - dist * dist);
             tmp_RGB = RGB * 255 * dz / radius + ticks * MAX_VEL;
             *n = make_float3((int)tmp_RGB.x % 255, (int)tmp_RGB.y % 255, (int)tmp_RGB.z % 255);
-            return current_trans.z + dz;
+            return curr_trans.z + dz;
         }
 
         return -INF;
@@ -74,7 +128,7 @@ struct DataBlock {
 
 
 
-__global__ void radius_kernel() {
+__global__ void radius_kernel(Sphere *dev_s) {
     int seed = threadIdx.x % SPHERES;
     float newRadius = 1.1 * dev_s[seed].radius;
     float newRadius_sec = newRadius - MAX_RADIUS;
@@ -84,7 +138,7 @@ __global__ void radius_kernel() {
 }
 
 
-__global__ void kernel(Sphere* dev_s, unsigned char *ptr, int ticks) {
+__global__ void kernel(Sphere *dev_s, unsigned char *ptr, int ticks) {
     // map from threadIdx/BlockIdx to pixel position
     int x = threadIdx.x + blockIdx.x * blockDim.x;
     int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -122,7 +176,7 @@ void anim_gpu(DataBlock *d, int ticks) {
     CPUAnimBitmap *bitmap = d->bitmap;
     
     /* change radius */
-    radius_kernel<<<blocks, threads>>>();
+    radius_kernel<<<blocks, threads>>>(d->dev_s);
     kernel<<<blocks, threads>>>(d->dev_s, d->dev_bitmap, ticks);
     // copy our bitmap back from the GPU for display
     HANDLE_ERROR(cudaMemcpy(bitmap->get_ptr(), 
