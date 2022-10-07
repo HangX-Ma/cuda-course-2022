@@ -64,7 +64,8 @@ struct Sphere {
         char2 ifReverse = make_char2(0, 0);
         float3 tmp_trans = trans + vel * ticks;
 
-        /*  */
+        /* check if x or y is negtive or not.
+         Reverse to positive number if x or y is negtive */
         if (tmp_trans.x < 0) {
             tmp_trans.x = -tmp_trans.x;
             ifReverse.x = 1;

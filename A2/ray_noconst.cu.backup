@@ -26,7 +26,7 @@
 #include "cpu_anim.h"
 #include "helper_math.h"
 
-#define SPHERES 10
+#define SPHERES 200
 #define DIM (1024)
 #define EDGE_DIM (500)
 #define THREAD_NUM (32)

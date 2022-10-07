@@ -18,3 +18,11 @@ void InitColorSet(float h1 /* = 137.0 */, float h2 /* = 30.0 */, int* Pallette) 
 ```
 - 需要注意的是，`cudaMemcpy`和`cudaMalloc`函数中仅能对一维指针进行处理，曾经想开辟一个二维数组进行数据交换，但显然失败了。在数据库建立之后，将这个数据库送入`kernel`中进行计算即可。
 
+## 运行测试
+```shell
+cd cuda-course-2022/A1
+mkdir build
+cmake -DCMAKE_BUILD_TYPE=Release -B build -S .
+cmake --build build
+./build/julia_set # run program
+```
