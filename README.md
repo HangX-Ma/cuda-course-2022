@@ -61,7 +61,7 @@ Result = PASS
 
 ## Demo Lists
 - [x] **A1** - [Julia Set](A1/README.md): Change the julia-set fractal function and decorate the julia-set graphic design with gradient color.
-- [ ] **A2** - [Dynamic Ray Tracing](A2/README.md):
+- [x] **A2** - [Dynamic Ray Tracing](A2/README.md): Realize the dynamic circumstance ray tracing, using noconst memory and const memory for comparison.
 
 ## _X11 Forwarding Service_ on GPU server
 Both on server and client.
