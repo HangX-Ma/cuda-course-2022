@@ -24,11 +24,14 @@
 #define __TRIANGLE_H__
 
 #include "tiny_obj_loader.h"
+namespace lbvh {
 
-typedef struct {
+typedef struct tri {
     tinyobj::index_t a;
     tinyobj::index_t b;
     tinyobj::index_t c;
-} s_triangle;
+} triangle_t;
 
+
+}
 #endif

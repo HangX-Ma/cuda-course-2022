@@ -1,7 +1,7 @@
 /**
- * @file AABB.cuh
+ * @file bvh.cuh
  * @author HangX-Ma m-contour@qq.com
- * @brief AABB bounding box struct definition 
+ * @brief  BVH tree class
  * @version 0.1
  * @date 2022-10-10
  * 
@@ -20,26 +20,20 @@
  * limitations under the License.
  */
 
-#ifndef __AABB_CUH__
-#define __AABB_CUH__
+#ifndef __BVH_CUH__
+#define __BVH_CUH__
 
-#include "Vector3f.cuh"
+#include "bvh_node.cuh"
 
-typedef struct {
-    Vector3f bmin;
-    Vector3f bmax;
+namespace lbvh {
 
-    __host__ __device__ Vector3f
-    getCentroid () {
-        return (bmin + bmax) / 2;
-    }
+class BVH {
 
-    __host__ __device__ void
-    operator=(const s_AABB &other) {
-        this->bmin = other.bmin;
-        this->bmax = other.bmax;
-    }
 
-} s_AABB;
 
-#endif 
+
+};
+
+
+}
+#endif

@@ -1,0 +1,143 @@
+/**
+ * @file bvh_node.cuh
+ * @author HangX-Ma m-contour@qq.com
+ * @brief  BVH node class
+ * @version 0.1
+ * @date 2022-10-10
+ * 
+ * @copyright Copyright (c) 2022 HangX-Ma(MContour) m-contour@qq.com
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef __BVHNODE_CUH__
+#define __BVHNODE_CUH__
+
+#include "aabb.cuh"
+
+namespace lbvh {
+
+class Node;
+typedef Node* NodePtr;
+
+class Node {
+
+public:
+    __device__
+    Node() : leftChild(nullptr), rightChild(nullptr), parent(nullptr), updateFlag(0), isLeaf(false) {}
+
+    /* set variable property */
+    __host__ __device__ __inline__ void
+    setType(bool newType) {isLeaf = newType;}
+
+    __host__ __device__ __inline__ void
+    setLeftChild(NodePtr newNode ) { 
+        this->leftChild = newNode;
+    }
+
+    __host__ __device__ __inline__ void
+    setRightChild(NodePtr newNode ) { 
+        this->leftChild = newNode;
+    }
+
+    __host__ __device__ __inline__ void
+    setParent(NodePtr pNode) {
+        this->parent = pNode;
+    }
+
+    __host__ __device__ __inline__ void
+    setUpdateFlag(int newVal) {
+        this->updateFlag = newVal;
+    }
+
+    __host__ __device__ __inline__ void
+    setBox(AABB &newBox) {
+        this->bbox = newBox;
+    }
+
+    /* get variable property */
+    __host__ __device__ __inline__ NodePtr
+    getLeftChild() const { 
+        return leftChild;
+    }
+
+    __host__ __device__ __inline__ NodePtr
+    getRightChild() const { 
+        return rightChild;
+    }
+    
+    __host__ __device__ __inline__ NodePtr
+    getParent() const {
+        return parent;
+    }
+
+    __host__ __device__ __inline__ int
+    getUpdateFlag() const {
+        return updateFlag;
+    }
+
+    __host__ __device__ __inline__ AABB
+    getBox() const {
+        return bbox;
+    }
+
+protected:
+    NodePtr leftChild;
+    NodePtr rightChild;
+    NodePtr parent;
+    int updateFlag;
+    bool isLeaf;
+    AABB bbox;
+};
+
+
+
+class InternalNode : public Node {
+
+public:
+    __device__
+    InternalNode() {
+        this->isLeaf = false;
+    }
+
+};
+
+
+class LeafNode : public Node {
+
+public:
+    __device__
+    LeafNode() : objectID(NULL) {
+        this->isLeaf = true;
+    }
+
+    /* set variable property */
+    __host__ __device__ __inline__ void 
+    setObjectID(__uint32_t id) {
+        objectID = id;
+    }
+    
+    /* get variable property */
+    __host__ __device__ __inline__ __uint32_t 
+    getObjectID() const {
+        return objectID;
+    }
+
+private:
+    __uint32_t objectID;
+
+};
+
+}
+
+#endif

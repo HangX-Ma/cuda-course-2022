@@ -40,7 +40,7 @@ find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
 
 
-file(GLOB CURRENT_DIR_SOURCES source/*.cpp source/*.cu)
+file(GLOB CURRENT_DIR_SOURCES src/*.cpp src/*.cu)
 
 # Generate executable file
 cuda_add_executable(template ${CURRENT_DIR_SOURCES})
