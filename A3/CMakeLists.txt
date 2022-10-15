@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 project(template LANGUAGES CXX CUDA)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 11)
 
 if(${CMAKE_CURRENT_BINARY_DIR})
     
@@ -29,7 +29,7 @@ if(${CUDA_FOUND})
     # set(CUDA_SOURCE_PROPERTY_FORMAT OBJ)
     set(CUDA_SEPARABLE_COMPILATION ON)
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    set(CUDA_NVCC_FLAGS -arch=sm_61;-O1;-G;-g)#根据具体GPU性能更改算力参数
+    set(CUDA_NVCC_FLAGS -arch=sm_61;-O1;-G;-g;-std=c++11)#根据具体GPU性能更改算力参数
     #SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61;-std=c++11;-O3;-G;-g)
 else(${CUDA_FOUND})
     message(STATUS "cuda not found!")
@@ -40,15 +40,29 @@ find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
 
 
-file(GLOB CURRENT_DIR_SOURCES src/*.cpp src/*.cu)
+file(GLOB_RECURSE CURRENT_DIR_HEADERS  *.h *.hpp *.cuh)
+file(GLOB CURRENT_DIR_SOURCES  *.cpp *.cu)
+
+
+# remove last end of "/"
+string(REGEX REPLACE "/$" "" CURRENT_FOLDER_ABSOLUTE ${CMAKE_CURRENT_SOURCE_DIR})
+# get above dir name
+get_filename_component(SECOND_FOLDER_ABSOLUTE ${CURRENT_FOLDER_ABSOLUTE} DIRECTORY)
+# common commponent
+set(COMMON_DIR_HEADERS 
+    ${SECOND_FOLDER_ABSOLUTE}/common 
+    ${SECOND_FOLDER_ABSOLUTE}/common/GL
+    )
+
 
 # Generate executable file
-cuda_add_executable(template ${CURRENT_DIR_SOURCES})
+cuda_add_executable(template ${CURRENT_DIR_SOURCES} ${CURRENT_DIR_HEADERS} ${COMMON_DIR_HEADERS})
 
 target_include_directories(template 
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CUDA_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${COMMON_DIR_HEADERS}
         ${OPENGL_INCLUDE_DIRS}
         ${GLUT_INCLUDE_DIRS}
     )
@@ -61,4 +75,4 @@ target_link_directories(template
     )
 
 set_target_properties(template PROPERTIES
-    OUTPUT_NAME "heatTransfer3D")
+    OUTPUT_NAME "stream")

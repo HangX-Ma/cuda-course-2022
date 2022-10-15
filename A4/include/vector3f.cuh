@@ -24,16 +24,13 @@
 #ifndef __VECTOR3_CUH__
 #define __VECTOR3_CUH__
 
-#include "crt/host_defines.h"
-
-
 namespace lbvh {
 
 constexpr float GLH_EPSILON = 1e-6f;
 
-typedef __device_builtin__ struct vec3f vec3f;
+typedef struct vec3f vec3f;
 
-struct __device_builtin__ vec3f {
+struct vec3f {
     /* constructor */
     __host__ __device__
     vec3f() : x(0.0f), y(0.0f), z(0.0f) {}
@@ -127,7 +124,7 @@ struct __device_builtin__ vec3f {
     }
 
     /* get normalized value */
-    __host__ __device__ __inline__ float 
+    __host__ __device__ __inline__ void 
     normalize() {
         double sum = x * x + y * y + z * z;
         if (sum > GLH_EPSILON) {
@@ -142,14 +139,13 @@ struct __device_builtin__ vec3f {
 
 
 __host__ __device__ __inline__ vec3f
-vmin(vec3f &lhs, vec3f &rhs) {
-    return vec3f(fmin(lhs.x, rhs.x), fmin(lhs.y, rhs.y), fmin(lhs.z, rhs.z));
+vmin(vec3f& lhs, vec3f& rhs) {
+    return vec3f(fminf(lhs.x, rhs.x), fminf(lhs.y, rhs.y), fminf(lhs.z, rhs.z));
 }
 
-
 __host__ __device__ __inline__ vec3f
-vmax(vec3f &lhs, vec3f &rhs) {
-    return vec3f(fmax(lhs.x, rhs.x), fmax(lhs.y, rhs.y), fmax(lhs.z, rhs.z));
+vmax(vec3f& lhs, vec3f& rhs) {
+    return vec3f(fmaxf(lhs.x, rhs.x), fmaxf(lhs.y, rhs.y), fmaxf(lhs.z, rhs.z));
 }
 
 }

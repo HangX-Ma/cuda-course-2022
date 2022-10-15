@@ -25,7 +25,11 @@
 
 #include "tiny_obj_loader.h"
 namespace lbvh {
-
+ 
+/**
+ * @brief triangle struct type, a, b, c represent 
+ * the angles of one triangle respectively.
+ */
 typedef struct tri {
     tinyobj::index_t a;
     tinyobj::index_t b;

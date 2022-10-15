@@ -24,13 +24,46 @@
 #define __BVH_CUH__
 
 #include "bvh_node.cuh"
+#include "morton_code.cuh"
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 
 namespace lbvh {
 
 class BVH {
 
+public:
+    BVH() = default;
+    ~BVH();
 
+    __host__ void 
+    construct(std::string inputfile);
 
+    __host__ __device__ __inline__ AABB& 
+    getBoundAABB() {
+        return aabb_bound;
+    }
+
+private:
+    __host__ void 
+    loadObj(std::string& inputfile);
+
+    __uint32_t* mortonCodes;
+    __uint32_t* objectIDs;
+
+    InternalNodePtr internalNodes; //!< Triangle_nums - 1
+    LeafNodePtr LeafNodes; //!< Triangles_num
+    
+    AABB aabb_bound;
+
+    thrust::host_vector<triangle_t> triangle_indices_h_;
+    thrust::host_vector<vec3f> vertices_h_;
+    thrust::host_vector<vec3f> normals_h_;
+
+    triangle_t* triangle_indices_d_;
+    vec3f* vertices_d_;
+    vec3f* normals_d_;
+    AABB* aabbs_d_;
 
 };
 

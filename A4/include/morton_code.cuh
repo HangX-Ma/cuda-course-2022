@@ -5,6 +5,8 @@
 
 namespace lbvh {
 
+
+
 __host__ __device__ __inline__ __uint32_t
 expandBits(__uint32_t v) {
     v = (v * 0x00010001u) & 0xFF0000FFu;
@@ -26,9 +28,9 @@ expandBits(__uint32_t v) {
  */
 __host__ __device__ __inline__ __uint32_t
 morton3D(float x, float y, float z) {
-    x = fmin(fmax(x * 1024.0f, 0.0f), 1023.0f);
-    y = fmin(fmax(y * 1024.0f, 0.0f), 1023.0f);
-    z = fmin(fmax(z * 1024.0f, 0.0f), 1023.0f);
+    x = fminf(fmaxf(x * 1024.0f, 0.0f), 1023.0f);
+    y = fminf(fmaxf(y * 1024.0f, 0.0f), 1023.0f);
+    z = fminf(fmaxf(z * 1024.0f, 0.0f), 1023.0f);
     const __uint32_t xx = expandBits((__uint32_t)x);
     const __uint32_t yy = expandBits((__uint32_t)y);
     const __uint32_t zz = expandBits((__uint32_t)z);
@@ -47,9 +49,9 @@ morton3D(float x, float y, float z) {
  */
 __host__ __device__ __inline__ __uint32_t
 morton3D(vec3f vec) {
-    vec.x = fmin(fmax(vec.x * 1024.0f, 0.0f), 1023.0f);
-    vec.y = fmin(fmax(vec.y * 1024.0f, 0.0f), 1023.0f);
-    vec.z = fmin(fmax(vec.z * 1024.0f, 0.0f), 1023.0f);
+    vec.x = fminf(fmaxf(vec.x * 1024.0f, 0.0f), 1023.0f);
+    vec.y = fminf(fmaxf(vec.y * 1024.0f, 0.0f), 1023.0f);
+    vec.z = fminf(fmaxf(vec.z * 1024.0f, 0.0f), 1023.0f);
     const __uint32_t xx = expandBits((__uint32_t)vec.x);
     const __uint32_t yy = expandBits((__uint32_t)vec.y);
     const __uint32_t zz = expandBits((__uint32_t)vec.z);

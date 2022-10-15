@@ -27,69 +27,16 @@
 
 namespace lbvh {
 
-class Node;
-typedef Node* NodePtr;
+typedef struct Node* NodePtr;
+typedef struct InternalNode* InternalNodePtr;
+typedef struct LeafNode* LeafNodePtr;
 
-class Node {
+
+struct Node {
 
 public:
     __device__
     Node() : leftChild(nullptr), rightChild(nullptr), parent(nullptr), updateFlag(0), isLeaf(false) {}
-
-    /* set variable property */
-    __host__ __device__ __inline__ void
-    setType(bool newType) {isLeaf = newType;}
-
-    __host__ __device__ __inline__ void
-    setLeftChild(NodePtr newNode ) { 
-        this->leftChild = newNode;
-    }
-
-    __host__ __device__ __inline__ void
-    setRightChild(NodePtr newNode ) { 
-        this->leftChild = newNode;
-    }
-
-    __host__ __device__ __inline__ void
-    setParent(NodePtr pNode) {
-        this->parent = pNode;
-    }
-
-    __host__ __device__ __inline__ void
-    setUpdateFlag(int newVal) {
-        this->updateFlag = newVal;
-    }
-
-    __host__ __device__ __inline__ void
-    setBox(AABB &newBox) {
-        this->bbox = newBox;
-    }
-
-    /* get variable property */
-    __host__ __device__ __inline__ NodePtr
-    getLeftChild() const { 
-        return leftChild;
-    }
-
-    __host__ __device__ __inline__ NodePtr
-    getRightChild() const { 
-        return rightChild;
-    }
-    
-    __host__ __device__ __inline__ NodePtr
-    getParent() const {
-        return parent;
-    }
-
-    __host__ __device__ __inline__ int
-    getUpdateFlag() const {
-        return updateFlag;
-    }
-
-    __host__ __device__ __inline__ AABB
-    getBox() const {
-        return bbox;
-    }
 
 protected:
     NodePtr leftChild;
@@ -102,7 +49,7 @@ protected:
 
 
 
-class InternalNode : public Node {
+struct InternalNode : public Node {
 
 public:
     __device__
@@ -113,11 +60,11 @@ public:
 };
 
 
-class LeafNode : public Node {
+struct LeafNode : public Node {
 
 public:
     __device__
-    LeafNode() : objectID(NULL) {
+    LeafNode() : objectID(0) {
         this->isLeaf = true;
     }
 

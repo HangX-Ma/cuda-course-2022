@@ -30,11 +30,10 @@ namespace lbvh {
 class AABB {
 
 public:
-
-    AABB() { init(); }
-
     vec3f bmin;
     vec3f bmax;
+
+    AABB() { init(); }
 
     __host__ __device__ __inline__ void 
     init() {
@@ -85,10 +84,21 @@ public:
         this->bmin = other.bmin;
         this->bmax = other.bmax;
     }
-
-
-
 };
+
+__host__ __device__ __inline__
+AABB merge(const AABB& lhs, const AABB& rhs) {
+    AABB merged;
+    merged.bmax.x = fmaxf(lhs.bmax.x, rhs.bmax.x);
+    merged.bmax.y = fmaxf(lhs.bmax.y, rhs.bmax.y);
+    merged.bmax.z = fmaxf(lhs.bmax.z, rhs.bmax.z);
+    merged.bmin.x = fminf(lhs.bmin.x, rhs.bmin.x);
+    merged.bmin.y = fminf(lhs.bmin.y, rhs.bmin.y);
+    merged.bmin.z = fminf(lhs.bmin.z, rhs.bmin.z);
+    
+    return merged;
+}
+
 }
 
 
