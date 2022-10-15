@@ -40,10 +40,6 @@ find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
 
 
-file(GLOB_RECURSE CURRENT_DIR_HEADERS  *.h *.hpp *.cuh)
-file(GLOB CURRENT_DIR_SOURCES  *.cpp *.cu)
-
-
 # remove last end of "/"
 string(REGEX REPLACE "/$" "" CURRENT_FOLDER_ABSOLUTE ${CMAKE_CURRENT_SOURCE_DIR})
 # get above dir name
@@ -56,9 +52,8 @@ set(COMMON_DIR_HEADERS
 
 
 # Generate executable file
-cuda_add_executable(template ${CURRENT_DIR_SOURCES} ${CURRENT_DIR_HEADERS} ${COMMON_DIR_HEADERS})
-
-target_include_directories(template 
+cuda_add_executable(no_streams vectorAdd_no_streams.cu ${COMMON_DIR_HEADERS})
+target_include_directories(no_streams 
     PRIVATE
         ${CUDA_INCLUDE_DIRS}
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -66,13 +61,33 @@ target_include_directories(template
         ${OPENGL_INCLUDE_DIRS}
         ${GLUT_INCLUDE_DIRS}
     )
+target_link_libraries(no_streams ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+target_link_directories(no_streams PRIVATE $ENV{CUDA_PATH}/lib64)
 
-target_link_libraries(template ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
-target_link_directories(template 
-    PRIVATE 
-        $ENV{CUDA_PATH}/lib64
+# vectorAdd two streams
+cuda_add_executable(two_streams vectorAdd_two_streams.cu ${COMMON_DIR_HEADERS})
+target_include_directories(two_streams 
+    PRIVATE
+        ${CUDA_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${COMMON_DIR_HEADERS}
+        ${OPENGL_INCLUDE_DIRS}
+        ${GLUT_INCLUDE_DIRS}
     )
+target_link_libraries(two_streams ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+target_link_directories(two_streams PRIVATE $ENV{CUDA_PATH}/lib64)
 
-set_target_properties(template PROPERTIES
-    OUTPUT_NAME "stream")
+
+# vectorAdd three streams
+cuda_add_executable(three_streams vectorAdd_three_streams.cu ${COMMON_DIR_HEADERS})
+target_include_directories(three_streams 
+    PRIVATE
+        ${CUDA_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${COMMON_DIR_HEADERS}
+        ${OPENGL_INCLUDE_DIRS}
+        ${GLUT_INCLUDE_DIRS}
+    )
+target_link_libraries(three_streams ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+target_link_directories(three_streams PRIVATE $ENV{CUDA_PATH}/lib64)

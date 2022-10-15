@@ -76,7 +76,7 @@ main(void)
 
 	// Print the vector length to be used, and compute its size
 	//int numElements = 50000;
-	int numElements = 50000000;
+	int numElements = 56623104;
 
 	size_t size = numElements * sizeof(REAL);
 	printf("[Vector addition of %d elements]\n", numElements);
@@ -143,6 +143,7 @@ main(void)
 	// Copy the host input vectors A and B in host memory to the device input vectors in
 	// device memory
 	printf("Copy input data from the host memory to the CUDA device\n");
+	START_GPU
 	err = cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
 
 	if (err != cudaSuccess)
@@ -163,7 +164,6 @@ main(void)
 	int threadsPerBlock = 1024;
 	int blocksPerGrid = (numElements + threadsPerBlock - 1) / threadsPerBlock;
 
-	START_GPU
 	printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid, threadsPerBlock);
 	vectorAdd << <blocksPerGrid, threadsPerBlock >> > (d_A, d_B, d_C, numElements);
 	END_GPU
@@ -195,11 +195,20 @@ main(void)
 		printf("gA=%lf, gB=%lf, gC=%lf\n", h_A[i], h_B[i], h_C[i]);
 	}
 
-#if 0
+#if 1
 	// Verify that the result vector is correct
+	// for (int i = 0; i < numElements; ++i)
+	// {
+	// 	if (fabs(h_A[i] + h_B[i] - h_C[i]) > 1e-5)
+	// 	{
+	// 		fprintf(stderr, "Result verification failed at element %d!\n", i);
+	// 		exit(EXIT_FAILURE);
+	// 	}
+	// }
+
 	for (int i = 0; i < numElements; ++i)
 	{
-		if (fabs(h_A[i] + h_B[i] - h_C[i]) > 1e-5)
+		if (fabs(atan(h_A[i])/((fabs(sin(fabs(h_B[i]) + 0.0001)) + 0.1)) - h_C[i]) > 1e-5)
 		{
 			fprintf(stderr, "Result verification failed at element %d!\n", i);
 			exit(EXIT_FAILURE);

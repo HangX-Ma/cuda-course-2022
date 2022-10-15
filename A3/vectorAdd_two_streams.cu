@@ -26,7 +26,7 @@
 #define REAL double
 
 #define N (1024*1024UL)
-#define FULL_DATA (N*10UL)
+#define FULL_DATA (N*54UL)
 
 #define START_GPU {\
 cudaEvent_t     start, stop;\

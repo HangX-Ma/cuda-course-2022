@@ -26,7 +26,7 @@
 #define REAL double
 
 #define N (1024*1024UL)
-#define FULL_DATA (N*10UL)
+#define FULL_DATA (N*54UL)
 
 #define START_GPU {\
 cudaEvent_t     start, stop;\
@@ -158,7 +158,7 @@ main(void) {
                                        N_size,
                                        cudaMemcpyHostToDevice,
                                        stream1 ) );
-        HANDLE_ERROR( cudaMemcpyAsync( dev_b2, host_a+i+N*2,
+        HANDLE_ERROR( cudaMemcpyAsync( dev_b2, host_b+i+N*2,
                                        N_size,
                                        cudaMemcpyHostToDevice,
                                        stream2 ) );
