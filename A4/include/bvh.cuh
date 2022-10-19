@@ -25,6 +25,7 @@
 
 #include "bvh_node.cuh"
 #include "morton_code.cuh"
+#include "triangle.h"
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 

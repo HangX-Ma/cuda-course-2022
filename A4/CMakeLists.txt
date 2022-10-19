@@ -1,12 +1,11 @@
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 project(template LANGUAGES CXX CUDA)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_EXTENSIONS ON)
 
-if(${CMAKE_CURRENT_BINARY_DIR})
-    
-endif()
-
+# check builder directory
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     message(FATAL_ERROR "Please select another folder to build the project.")
 endif()
@@ -23,14 +22,17 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 
+message(STATUS "Runtime DIR: ${cuda_runtime_DIR}")
+
 # find CUDA library
 find_package(CUDA REQUIRED)
 if(${CUDA_FOUND})
     # set(CUDA_SOURCE_PROPERTY_FORMAT OBJ)
     set(CUDA_SEPARABLE_COMPILATION ON)
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    set(CUDA_NVCC_FLAGS -arch=sm_61;-O1;-G;-g)#根据具体GPU性能更改算力参数
-    #SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61;-std=c++11;-O3;-G;-g)
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-arch=sm_52;-O2;-G;-g")#根据具体GPU性能更改算力参数
+    # Only when you have CUDA 8 or newer version (--expt-extended-lambda or --extended-lambda)
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-Xcompiler;-fPIC")
 else(${CUDA_FOUND})
     message(STATUS "cuda not found!")
 endif()
@@ -53,12 +55,12 @@ target_include_directories(template
         ${GLUT_INCLUDE_DIRS}
     )
 
-target_link_libraries(template ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+target_link_directories(template PRIVATE $ENV{CUDA_PATH}/targets/x86_64-linux/lib)
+target_link_libraries(template ${CUDA_LIBRARIES} ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
-target_link_directories(template 
-    PRIVATE 
-        $ENV{CUDA_PATH}/lib64
-    )
+
 
 set_target_properties(template PROPERTIES
-    OUTPUT_NAME "heatTransfer3D")
+    OUTPUT_NAME "heatTransfer3D"
+    CUDA_SEPARABLE_COMPILATION ON
+    )

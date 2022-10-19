@@ -1,10 +1,42 @@
-#define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
-#include "bvh.cuh"
-#include "triangle.h"
 
+#include "bvh.cuh"
+#include <cuda_runtime.h>
+#include <thrust/functional.h>
+#include <thrust/transform.h>
+#include <thrust/transform_reduce.h>
 
 namespace lbvh {
+
+struct minUnaryFunc{
+    __host__ __device__
+    vec3f operator () (const AABB& a){
+        return a.bmin;
+    }
+};
+
+struct minBinaryFunc{
+    __host__ __device__
+    vec3f operator () (const vec3f& a, const vec3f& b){
+        return vmin(a,b);
+    }
+};
+struct maxUnaryFunc{
+    
+    __host__ __device__
+    vec3f operator () (const AABB& a){
+        return a.bmax;
+    }
+};
+
+struct maxBinaryFunc{
+    __host__ __device__
+    vec3f operator () (const vec3f& a, const vec3f& b){
+        return vmax(a,b);
+    }
+};
+
+
 
 /* Kernel declaration */
 __global__ void 
@@ -56,7 +88,7 @@ BVH::loadObj(std::string& inputfile) {
 
     /* get vertices */
     size_t vertices_size = attrib.vertices.size();
-    for (size_t s = 0; s < vertices_size; s) {
+    for (size_t s = 0; s < vertices_size; s++) {
         vec3f vertice;
         vertice.x = attrib.vertices.at(s * 3 + 0);
         vertice.y = attrib.vertices.at(s * 3 + 1);
@@ -66,7 +98,7 @@ BVH::loadObj(std::string& inputfile) {
 
     /* get normals */
     size_t normals_size = attrib.normals.size();
-    for (size_t s = 0; s < normals_size; s) {
+    for (size_t s = 0; s < normals_size; s++) {
         vec3f normal;
         normal.x = attrib.normals.at(s * 3 + 0);
         normal.y = attrib.normals.at(s * 3 + 1);
@@ -111,12 +143,17 @@ BVH::construct(std::string inputfile) {
 
     /* calculate morton code for all objects */
     thrust::device_ptr<AABB> aabb_d_ptr(aabbs_d_);
-    aabb_bound.bmax = thrust::transform_reduce(aabb_d_ptr, aabb_d_ptr + num_objects,
-                                                [](const AABB& lhs) { return lhs.bmax; },
-                                                vec3f(-1e9f, -1e9f, -1e9f),
-                                                [] (vec3f& lhs, vec3f& rhs) { return vmax(lhs, rhs); }
-                                                );
+    aabb_bound.bmax = thrust::transform_reduce(
+        aabb_d_ptr, aabb_d_ptr + num_objects,
+        maxUnaryFunc(),
+        vec3f(-1e9f, -1e9f, -1e9f),
+        maxBinaryFunc());
 
+    aabb_bound.bmin = thrust::transform_reduce(
+        aabb_d_ptr, aabb_d_ptr + num_objects,
+        minUnaryFunc(),
+        vec3f(1e9f, 1e9f, 1e9f),
+        minBinaryFunc());
 }
 
 BVH::~BVH() {
@@ -147,15 +184,15 @@ computeBBoxes_Kernel(const __uint32_t& num_objects, triangle_t* triangles, vec3f
 
 
 
-__global__ void 
-computeMortonCode_kernel(__uint32_t num_objects, AABB* aabbs, ) {
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    if (idx > num_objects) {
-        return;
-    }
+// __global__ void 
+// computeMortonCode_kernel(__uint32_t num_objects, AABB* aabbs, ) {
+//     int idx = threadIdx.x + blockIdx.x * blockDim.x;
+//     if (idx > num_objects) {
+//         return;
+//     }
 
 
-}
+// }
 
 
 

@@ -86,7 +86,7 @@ public:
     }
 };
 
-__host__ __device__ __inline__
+__device__ __inline__
 AABB merge(const AABB& lhs, const AABB& rhs) {
     AABB merged;
     merged.bmax.x = fmaxf(lhs.bmax.x, rhs.bmax.x);

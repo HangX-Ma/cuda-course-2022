@@ -139,12 +139,12 @@ struct vec3f {
 
 
 __host__ __device__ __inline__ vec3f
-vmin(vec3f& lhs, vec3f& rhs) {
+vmin(const vec3f& lhs, const vec3f& rhs) {
     return vec3f(fminf(lhs.x, rhs.x), fminf(lhs.y, rhs.y), fminf(lhs.z, rhs.z));
 }
 
 __host__ __device__ __inline__ vec3f
-vmax(vec3f& lhs, vec3f& rhs) {
+vmax(const vec3f& lhs, const vec3f& rhs) {
     return vec3f(fmaxf(lhs.x, rhs.x), fmaxf(lhs.y, rhs.y), fmaxf(lhs.z, rhs.z));
 }
 
