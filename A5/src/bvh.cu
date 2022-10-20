@@ -1,10 +1,12 @@
 #include "tiny_obj_loader.h"
 
+#include "book.h"
 #include "bvh.cuh"
 #include <cuda_runtime.h>
 #include <thrust/functional.h>
 #include <thrust/transform.h>
 #include <thrust/transform_reduce.h>
+
 
 namespace lbvh {
 
@@ -114,19 +116,30 @@ BVH::construct(std::string inputfile) {
     if(triangle_indices_h_.size() == 0u || 
         vertices_h_.size() == 0u || 
         normals_h_.size() == 0u ) {
-        return;
+
+        printf("Please load objects fisrt. Error happens in %s at line %d.\n", __FILE__, __LINE__);
+        exit(EXIT_FAILURE);
     }
     
+    /* ---------------- STAGE 1: load objects ---------------- */
     /* allocte specific memory size */
-    cudaMalloc((void**)&triangle_indices_d_, triangle_indices_h_.size() * sizeof(triangle_t));
-    cudaMalloc((void**)&vertices_d_, vertices_h_.size() * sizeof(vec3f));
-    cudaMalloc((void**)&normals_d_, vertices_h_.size() * sizeof(vec3f));
-    cudaMalloc((void**)&aabbs_d_, triangle_indices_h_.size() * sizeof(AABB));
+    HANDLE_ERROR(cudaMalloc((void**)&triangle_indices_d_, triangle_indices_h_.size() * sizeof(triangle_t)));
+    HANDLE_ERROR(cudaMalloc((void**)&vertices_d_, vertices_h_.size() * sizeof(vec3f)));
+    HANDLE_ERROR(cudaMalloc((void**)&normals_d_, vertices_h_.size() * sizeof(vec3f)));
+    HANDLE_ERROR(cudaMalloc((void**)&aabbs_d_, triangle_indices_h_.size() * sizeof(AABB)));
 
     /* copy data from host to device */
-    cudaMemcpy(&triangle_indices_d_, triangle_indices_h_.data(), triangle_indices_h_.size() * sizeof(triangle_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(&vertices_d_, vertices_h_.data(), vertices_h_.size() * sizeof(vec3f), cudaMemcpyHostToDevice);
-    cudaMemcpy(&normals_d_, normals_h_.data(), vertices_h_.size() * sizeof(vec3f), cudaMemcpyHostToDevice);
+    HANDLE_ERROR(cudaMemcpy(&triangle_indices_d_, triangle_indices_h_.data(), 
+                            triangle_indices_h_.size() * sizeof(triangle_t), 
+                            cudaMemcpyHostToDevice));
+
+    HANDLE_ERROR(cudaMemcpy(&vertices_d_, vertices_h_.data(), 
+                            vertices_h_.size() * sizeof(vec3f), 
+                            cudaMemcpyHostToDevice));
+
+    HANDLE_ERROR(cudaMemcpy(&normals_d_, normals_h_.data(), 
+                            vertices_h_.size() * sizeof(vec3f), 
+                            cudaMemcpyHostToDevice));
 
 
     const __uint32_t num_objects        = triangle_indices_h_.size();
@@ -153,13 +166,23 @@ BVH::construct(std::string inputfile) {
         minUnaryFunc(),
         vec3f(1e9f, 1e9f, 1e9f),
         minBinaryFunc());
+
+    printf("found AABB bound min(%0.6f, %0.6f , %0.6f)\n" , aabb_bound.bmin.x , aabb_bound.bmin.y , aabb_bound.bmin.z);
+    printf("found AABB bound max(%0.6f, %0.6f , %0.6f)\n" , aabb_bound.bmax.x , aabb_bound.bmax.y , aabb_bound.bmax.z);
+
+    /* ---------------- STAGE 2: build BVH Tree ---------------- */
+    HANDLE_ERROR(cudaMalloc(&mortonCodes, num_objects * sizeof(__uint32_t)));
+    HANDLE_ERROR(cudaMalloc(&objectIDs, num_objects * sizeof(__uint32_t)));
+    HANDLE_ERROR(cudaMalloc(&LeafNodes, num_objects * sizeof(LeafNode)));
+    HANDLE_ERROR(cudaMalloc(&internalNodes, (num_objects - 1) * sizeof(InternalNode)));
+
 }
 
 BVH::~BVH() {
-    cudaFree(triangle_indices_d_);
-    cudaFree(vertices_d_);
-    cudaFree(normals_d_);
-    cudaFree(aabbs_d_);
+    HANDLE_ERROR(cudaFree(triangle_indices_d_));
+    HANDLE_ERROR(cudaFree(vertices_d_));
+    HANDLE_ERROR(cudaFree(normals_d_));
+    HANDLE_ERROR(cudaFree(aabbs_d_));
 }
 
 

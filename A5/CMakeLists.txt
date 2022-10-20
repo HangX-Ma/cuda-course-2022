@@ -22,6 +22,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 
+
+set(cuda_runtime_DIR $ENV{CUDA_PATH}/lib64)
 message(STATUS "Runtime DIR: ${cuda_runtime_DIR}")
 
 # find CUDA library
@@ -42,6 +44,16 @@ find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
 
 
+# remove last end of "/"
+string(REGEX REPLACE "/$" "" CURRENT_FOLDER_ABSOLUTE ${CMAKE_CURRENT_SOURCE_DIR})
+# get above dir name
+get_filename_component(SECOND_FOLDER_ABSOLUTE ${CURRENT_FOLDER_ABSOLUTE} DIRECTORY)
+# common commponent
+set(COMMON_DIR_HEADERS 
+    ${SECOND_FOLDER_ABSOLUTE}/common 
+    ${SECOND_FOLDER_ABSOLUTE}/common/GL
+    )
+
 file(GLOB CURRENT_DIR_SOURCES src/*.cpp src/*.cu)
 
 # Generate executable file
@@ -50,6 +62,7 @@ cuda_add_executable(template ${CURRENT_DIR_SOURCES})
 target_include_directories(template 
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${COMMON_DIR_HEADERS}
         ${CUDA_INCLUDE_DIRS}
         ${OPENGL_INCLUDE_DIRS}
         ${GLUT_INCLUDE_DIRS}
