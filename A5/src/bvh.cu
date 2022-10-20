@@ -111,7 +111,6 @@ BVH::loadObj(std::string& inputfile) {
 
 __host__ void 
 BVH::construct(std::string inputfile) {
-    loadObj(inputfile);
     if(triangle_indices_h_.size() == 0u || 
         vertices_h_.size() == 0u || 
         normals_h_.size() == 0u ) {

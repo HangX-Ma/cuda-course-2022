@@ -1,0 +1,3 @@
+[submodule "A5/share/tinyobjloader"]
+	path = A5/share/tinyobjloader
+	url = https://github.com/tinyobjloader/tinyobjloader
