@@ -40,21 +40,22 @@ public:
     __host__ void 
     construct(std::string inputfile);
 
+    __host__ void 
+    loadObj(std::string& inputfile);
+
     __host__ __device__ __inline__ AABB& 
     getBoundAABB() {
         return aabb_bound;
     }
 
 private:
-    __host__ void 
-    loadObj(std::string& inputfile);
-
     __uint32_t* mortonCodes;
     __uint32_t* objectIDs;
 
-    InternalNodePtr internalNodes; //!< Triangle_nums - 1
-    LeafNodePtr LeafNodes; //!< Triangles_num
-    
+    InternalNodePtr internalNodes;  //!< num_objects - 1
+    LeafNodePtr LeafNodes;          //!< num_objects
+    AABB* aabbs;
+
     AABB aabb_bound;
 
     thrust::host_vector<triangle_t> triangle_indices_h_;
@@ -64,7 +65,6 @@ private:
     triangle_t* triangle_indices_d_;
     vec3f* vertices_d_;
     vec3f* normals_d_;
-    AABB* aabbs_d_;
 
 };
 

@@ -33,13 +33,14 @@ public:
     vec3f bmin;
     vec3f bmax;
 
-    AABB() { init(); }
-
-    __host__ __device__ __inline__ void 
-    init() {
+    __host__ __device__
+    AABB() {
         bmax = vec3f(-FLT_MAX, -FLT_MAX, -FLT_MAX);
         bmin = vec3f(FLT_MAX, FLT_MAX, FLT_MAX);
     }
+
+    __host__ __device__
+    AABB(vec3f bmin, vec3f bmax) : bmin(bmin), bmax(bmax) {}
 
     __host__ __device__ __inline__ bool 
     overlaps(const AABB& other) const {
@@ -86,7 +87,7 @@ public:
     }
 };
 
-__device__ __inline__
+__host__ __device__ __inline__
 AABB merge(const AABB& lhs, const AABB& rhs) {
     AABB merged;
     merged.bmax.x = fmaxf(lhs.bmax.x, rhs.bmax.x);

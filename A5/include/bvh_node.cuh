@@ -33,13 +33,11 @@ typedef struct LeafNode* LeafNodePtr;
 
 
 struct Node {
-
-public:
     __device__
-    Node() : leftChild(nullptr), rightChild(nullptr), parent(nullptr), updateFlag(0), isLeaf(false) {}
+    Node() : childA(nullptr), childB(nullptr), parent(nullptr), updateFlag(0), isLeaf(false) {}
 
-    NodePtr leftChild;
-    NodePtr rightChild;
+    NodePtr childA;
+    NodePtr childB;
     NodePtr parent;
     int updateFlag;
     bool isLeaf;
@@ -49,8 +47,8 @@ public:
 
 
 struct InternalNode : public Node {
+    using Node::Node; // Inheriting Constructor
 
-public:
     __device__
     InternalNode() {
         this->isLeaf = false;
@@ -60,8 +58,8 @@ public:
 
 
 struct LeafNode : public Node {
+    using Node::Node; // Inheriting Constructor
 
-public:
     __device__
     LeafNode() : objectID(0) {
         this->isLeaf = true;

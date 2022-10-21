@@ -60,7 +60,7 @@ morton3D(vec3f& vec) {
 }
 
 __device__ __inline__ int 
-upperBits(const __uint32_t lhs, const __uint32_t rhs) noexcept {
+commonUpperBits(const __uint32_t lhs, const __uint32_t rhs) noexcept {
     return __clz(lhs ^ rhs);
 }
 
