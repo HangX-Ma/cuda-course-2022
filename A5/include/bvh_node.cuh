@@ -38,7 +38,6 @@ public:
     __device__
     Node() : leftChild(nullptr), rightChild(nullptr), parent(nullptr), updateFlag(0), isLeaf(false) {}
 
-protected:
     NodePtr leftChild;
     NodePtr rightChild;
     NodePtr parent;

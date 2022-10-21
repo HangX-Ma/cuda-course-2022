@@ -2,6 +2,7 @@
 
 #include "book.h"
 #include "bvh.cuh"
+#include "morton_code.cuh"
 #include <cuda_runtime.h>
 #include <thrust/functional.h>
 #include <thrust/transform.h>
@@ -44,6 +45,9 @@ struct maxBinaryFunc{
 __global__ void 
 computeBBoxes_Kernel(const __uint32_t& num_objects, triangle_t* trianglePtr, vec3f* verticePtr, AABB* aabbPtr);
 
+__global__ void 
+computeMortonCode_kernel(__uint32_t num_objects, __uint32_t* objectIDs, 
+                            AABB& aabb_bound, AABB* aabbs, __uint32_t* mortonCodes);
 
 
 __host__ void 
@@ -176,6 +180,29 @@ BVH::construct(std::string inputfile) {
     HANDLE_ERROR(cudaMalloc(&LeafNodes, num_objects * sizeof(LeafNode)));
     HANDLE_ERROR(cudaMalloc(&internalNodes, (num_objects - 1) * sizeof(InternalNode)));
 
+    /* compute morton code */
+    computeMortonCode_kernel<<<blocksPerGrid, threadsPerBlock>>>(num_objects, objectIDs, aabb_bound, aabbs_d_, mortonCodes);
+
+    /* sort morton codes */
+    thrust::device_ptr<__uint32_t> mortonCodes_d_ptr(mortonCodes);
+    thrust::device_ptr<__uint32_t> objectIDs_d_ptr(objectIDs);
+    thrust::sort_by_key(mortonCodes_d_ptr, mortonCodes_d_ptr + num_objects, objectIDs_d_ptr);
+
+    /* check morton codes are unique */
+    thrust::device_ptr<__uint64_t> mortonCodes64_d_ptr;
+    const auto uniqued = thrust::unique_copy(mortonCodes_d_ptr, mortonCodes_d_ptr + num_objects, mortonCodes64_d_ptr);
+
+    /* construct leaf nodes */
+    thrust::device_ptr<LeafNode> leafNodes_d_ptr(LeafNodes);
+    thrust::transform(LeafNodes, LeafNodes + num_objects, leafNodes_d_ptr,
+        [] __device__ (const __uint32_t idx) {
+            LeafNode leaf;
+            leaf.setObjectID(idx);
+            
+            return leaf;
+        });
+
+    
 }
 
 BVH::~BVH() {
@@ -206,17 +233,28 @@ computeBBoxes_Kernel(const __uint32_t& num_objects, triangle_t* triangles, vec3f
 
 
 
-// __global__ void 
-// computeMortonCode_kernel(__uint32_t num_objects, AABB* aabbs, ) {
-//     int idx = threadIdx.x + blockIdx.x * blockDim.x;
-//     if (idx > num_objects) {
-//         return;
-//     }
+__global__ void 
+computeMortonCode_kernel(__uint32_t num_objects, __uint32_t* objectIDs, 
+                            AABB& aabb_bound, AABB* aabbs, __uint32_t* mortonCodes) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx > num_objects) {
+        return;
+    }
 
+    objectIDs[idx] = idx;
+    vec3f centroid = aabbs[idx].getCentroid();
+    centroid.x = (centroid.x - aabb_bound.bmin.x) / (aabb_bound.bmax.x - aabb_bound.bmin.x);
+    centroid.y = (centroid.y - aabb_bound.bmin.y) / (aabb_bound.bmax.y - aabb_bound.bmin.y);
+    centroid.z = (centroid.z - aabb_bound.bmin.z) / (aabb_bound.bmax.z - aabb_bound.bmin.z);
+    mortonCodes[idx] = morton3D(centroid);
 
-// }
+    return;
+}
 
+__global__ void
+constructInternalNodes_kernel() {
 
+}
 
 
 

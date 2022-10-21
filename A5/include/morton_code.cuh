@@ -48,7 +48,7 @@ morton3D(float x, float y, float z) {
  * @return morton code 
  */
 __host__ __device__ __inline__ __uint32_t
-morton3D(vec3f vec) {
+morton3D(vec3f& vec) {
     vec.x = fminf(fmaxf(vec.x * 1024.0f, 0.0f), 1023.0f);
     vec.y = fminf(fmaxf(vec.y * 1024.0f, 0.0f), 1023.0f);
     vec.z = fminf(fmaxf(vec.z * 1024.0f, 0.0f), 1023.0f);
