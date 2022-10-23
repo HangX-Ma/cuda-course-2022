@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 project(template LANGUAGES CXX CUDA)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_EXTENSIONS ON)
 
@@ -32,7 +32,7 @@ if(${CUDA_FOUND})
     # set(CUDA_SOURCE_PROPERTY_FORMAT OBJ)
     set(CUDA_SEPARABLE_COMPILATION ON)
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-arch=sm_52;-O2;-G;-g")#根据具体GPU性能更改算力参数
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-arch=sm_61;-O2;-G;-g")#根据具体GPU性能更改算力参数
     # Only when you have CUDA 8 or newer version (--expt-extended-lambda or --extended-lambda)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-Xcompiler;-fPIC")
 else(${CUDA_FOUND})
@@ -54,14 +54,15 @@ set(COMMON_DIR_HEADERS
     ${SECOND_FOLDER_ABSOLUTE}/common/GL
     )
 
-file(GLOB CURRENT_DIR_SOURCES src/*.cpp src/*.cu)
+file(GLOB CURRENT_DIR_SOURCES src/*.cpp)
+file(GLOB CURRENT_DIR_CUDA_SOURCES src/*.cu)
 
 # Generate executable file
-cuda_add_executable(template ${CURRENT_DIR_SOURCES})
+cuda_add_executable(template ${CURRENT_DIR_SOURCES} ${CURRENT_DIR_CUDA_SOURCES})
 
 target_include_directories(template 
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/include
         ${COMMON_DIR_HEADERS}
         ${CUDA_INCLUDE_DIRS}
         ${OPENGL_INCLUDE_DIRS}
@@ -76,4 +77,5 @@ target_link_libraries(template ${CUDA_LIBRARIES} ${OPENGL_LIBRARIES} ${GLUT_LIBR
 set_target_properties(template PROPERTIES
     OUTPUT_NAME "heatTransfer3D"
     CUDA_SEPARABLE_COMPILATION ON
+    CUDA_ARCHITECTURES 61
     )

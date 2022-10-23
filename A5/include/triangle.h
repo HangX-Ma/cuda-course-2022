@@ -23,7 +23,9 @@
 #ifndef __TRIANGLE_H__
 #define __TRIANGLE_H__
 
+#include "vector3f.h"
 #include "tiny_obj_loader.h"
+
 namespace lbvh {
  
 typedef struct tri triangle_t;

@@ -1,18 +1,45 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 #include "tiny_obj_loader.h"
 
+#include "optionparser.h"
+#include "bvh.h"
 #include <iostream>
 #include <string>
 #include <vector>
-#include "optionparser.h"
+
+
+struct Arg: public option::Arg
+{
+  static void printError(const char* msg1, const option::Option& opt, const char* msg2)
+  {
+    fprintf(stderr, "%s", msg1);
+    fwrite(opt.name, opt.namelen, 1, stderr);
+    fprintf(stderr, "%s", msg2);
+  }
+
+    static option::ArgStatus Unknown(const option::Option& option, bool msg)
+    {
+        if (msg) printError("Unknown option '", option, "'\n");
+        return option::ARG_ILLEGAL;
+    }
+
+    static option::ArgStatus Required(const option::Option& option, bool msg)
+    {
+    if (option.arg != 0)
+        return option::ARG_OK;
+
+    if (msg) printError("Option '", option, "' requires an argument\n");
+    return option::ARG_ILLEGAL;
+    }
+};
 
 enum  optionIndex { UNKNOWN, HELP, FILE_PATH, NOTE };
 const option::Descriptor usage[] = {
-    {UNKNOWN, 0, "", "", option::Arg::None, "USAGE: program [options]\n\n"
-                                            "Options:" },
-    {HELP, 0, "h", "help", option::Arg::None, "  --help, -h \tPrint usage and exit." },
-    {FILE_PATH, 0, "f", "file", option::Arg::None, "  --file, -f \tOjbect file path." },
-    {NOTE, 0, "", "", option::Arg::None, "\nNOTE: (.obj) file needs to be determined by yourself."},
+    {UNKNOWN,   0, "",  "",     Arg::None,      "USAGE: program [options]\n\n"
+                                                "Options:" },
+    {HELP,      0, "",  "help", Arg::None,      "  --help, \tPrint usage and exit." },
+    {FILE_PATH, 0, "f", "file", Arg::Required,  "  --file, -f \tOjbect file path." },
+    {NOTE,      0, "",  "",     Arg::None,      "\nNOTE: (.obj) file needs to be determined by yourself."},
     {0, 0, 0, 0, 0, 0}
 };
  
@@ -33,6 +60,11 @@ int main(int argc, char* argv[])
     }
     
     if (options[FILE_PATH] || argc == 0) {
+        std::string objFilePath(options[FILE_PATH].arg);
+        lbvh::BVH objBVH;
+        objBVH.loadObj(objFilePath);
+        objBVH.construct();
+
         return 0;
     }
     
