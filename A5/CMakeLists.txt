@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 project(template LANGUAGES CXX CUDA)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_EXTENSIONS ON)
 
@@ -63,12 +63,14 @@ cuda_add_executable(template ${CURRENT_DIR_SOURCES} ${CURRENT_DIR_CUDA_SOURCES})
 target_include_directories(template 
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
-        ${COMMON_DIR_HEADERS}
+        # ${COMMON_DIR_HEADERS}
         ${CUDA_INCLUDE_DIRS}
         ${OPENGL_INCLUDE_DIRS}
         ${GLUT_INCLUDE_DIRS}
     )
 
+
+target_compile_options(template PUBLIC -Wno-deprecated-declarations)
 target_link_directories(template PRIVATE $ENV{CUDA_PATH}/targets/x86_64-linux/lib)
 target_link_libraries(template ${CUDA_LIBRARIES} ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 

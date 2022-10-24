@@ -7,6 +7,7 @@ Only if you have CUDA 8 or newer, when you enabled to use extended lambada featu
 
 # Problem Record
 
+## 1. How to use lambda in CUDA?
 When I use `--expt-extended-lambda` option, linker seems to be abnormal.
 ```shell
 /usr/bin/ld: cannot find -lcudadevrt
@@ -19,6 +20,19 @@ sudo ln -s /usr/local/cuda/lib64/libcudart_static.a /usr/lib/libcudart_static.a
 sudo ln -s /usr/local/cuda/lib64/libcudart_static.a /usr/lib/libcudadevrt.a
 ```
 
+## 2. illegal reference in `Kernel`
+```c++
+__global__ void 
+computeBBoxes_kernel(const std::uint32_t &num_objects, triangle_t* trianglePtr, vec3f* verticePtr, AABB* aabbPtr);
+```
+I use `&` to determine a referenced value in kernel parameters. However, it is illegal. It will rise the following error report. [[see details here](https://www.coder.work/article/2793171)]
+```shell
+terminate called after throwing an instance of 'thrust::system::system_error'
+  what():  after reduction step 1: cudaErrorIllegalAddress: an illegal memory access was encountered
+Aborted (core dumped)
+```
+
+# Reference
 > [1] [Thinking Parallel, Part I: Collision Detection on the GPU](https://developer.nvidia.com/blog/thinking-parallel-part-i-collision-detection-gpu/)
 > [2] [Thinking Parallel, Part II: Tree Traversal on the GPU](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
 > [3] [Thinking Parallel, Part III: Tree Construction on the GPU](https://developer.nvidia.com/blog/thinking-parallel-part-iii-tree-construction-gpu/)

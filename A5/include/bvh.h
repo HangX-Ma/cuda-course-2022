@@ -43,12 +43,27 @@ public:
     __host__ void 
     loadObj(std::string& inputfile);
 
+    __host__ triangle_t*
+    getTriangleList() {
+        return triangle_indices_h_.data();
+    }
+
+    __host__ vec3f*
+    getVerticeList() {
+        return vertices_h_.data();
+    }
+
+    __host__ std::uint32_t
+    getOjbectNum() {
+        return static_cast<std::uint32_t>(triangle_indices_h_.size());
+    }
+
 private:
     std::uint32_t* mortonCodes;
     std::uint32_t* objectIDs;
 
     InternalNodePtr internalNodes;  //!< num_objects - 1
-    LeafNodePtr LeafNodes;          //!< num_objects
+    LeafNodePtr leafNodes;          //!< num_objects
 
     std::vector<triangle_t> triangle_indices_h_;
     std::vector<vec3f> vertices_h_;

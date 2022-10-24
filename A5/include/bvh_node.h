@@ -66,20 +66,7 @@ struct LeafNode : public Node {
     LeafNode() : objectID(0) {
         this->isLeaf = true;
     }
-
-    /* set variable property */
-    __host__ __device__ __inline__ void 
-    setObjectID(std::uint32_t id) {
-        objectID = id;
-    }
     
-    /* get variable property */
-    __host__ __device__ __inline__ std::uint32_t 
-    getObjectID() const {
-        return objectID;
-    }
-
-private:
     std::uint32_t objectID;
 
 };

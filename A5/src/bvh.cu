@@ -36,16 +36,18 @@ findSplit(std::uint32_t* sortedMortonCodes, int first, int last);
 
 /* Kernel declaration */
 __global__ void 
-computeBBoxes_kernel(const std::uint32_t& num_objects, triangle_t* trianglePtr, vec3f* verticePtr, AABB* aabbPtr);
+computeBBoxes_kernel(const std::uint32_t num_objects, triangle_t* trianglePtr, vec3f* verticePtr, AABB* aabbPtr);
 
 __global__ void 
 computeMortonCode_kernel(std::uint32_t num_objects, std::uint32_t* objectIDs, 
-                            AABB& aabb_bound, AABB* aabbs, std::uint32_t* mortonCodes);
+                            AABB aabb_bound, AABB* aabbs, std::uint32_t* mortonCodes);
 
 __global__ void
 construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* sortedObjectIDs, int numObjects,
                             InternalNodePtr internalNodes, LeafNodePtr leafNodes, AABB* bboxes);
 
+__global__ void
+createAABBHierarchy_Kernel(int num_objects, LeafNodePtr leafNodes);
 
 struct minUnaryFunc{
     __host__ __device__
@@ -99,7 +101,7 @@ BVH::loadObj(std::string& inputfile) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
-
+    
     std::string err;
     bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputfile.c_str());
 
@@ -217,7 +219,6 @@ BVH::construct() {
     /* calculate morton code for all objects */
     AABB aabb_bound;
     thrust::device_ptr<AABB> aabb_d_ptr(aabbs);
-    // TODO thrust error: what():  after reduction step 2: cudaErrorIllegalAddress: an illegal memory access was encountered
     aabb_bound.bmax = thrust::transform_reduce(
         aabb_d_ptr, aabb_d_ptr + num_objects,
         maxUnaryFunc(),
@@ -228,15 +229,14 @@ BVH::construct() {
         minUnaryFunc(),
         vec3f(1e9f, 1e9f, 1e9f),
         minBinaryFunc());
-    printf("2");
 
-    printf("found AABB bound min(%0.6f, %0.6f , %0.6f)\n" , aabb_bound.bmin.x , aabb_bound.bmin.y , aabb_bound.bmin.z);
-    printf("found AABB bound max(%0.6f, %0.6f , %0.6f)\n" , aabb_bound.bmax.x , aabb_bound.bmax.y , aabb_bound.bmax.z);
+    printf("--> found AABB bound min(%0.6f, %0.6f , %0.6f)\n" , aabb_bound.bmin.x , aabb_bound.bmin.y , aabb_bound.bmin.z);
+    printf("--> found AABB bound max(%0.6f, %0.6f , %0.6f)\n" , aabb_bound.bmax.x , aabb_bound.bmax.y , aabb_bound.bmax.z);
 
     /* ---------------- STAGE 2: build BVH Tree ---------------- */
     HANDLE_ERROR(cudaMalloc(&mortonCodes, num_objects * sizeof(std::uint32_t)));
     HANDLE_ERROR(cudaMalloc(&objectIDs, num_objects * sizeof(std::uint32_t)));
-    HANDLE_ERROR(cudaMalloc(&LeafNodes, num_objects * sizeof(LeafNode)));
+    HANDLE_ERROR(cudaMalloc(&leafNodes, num_objects * sizeof(LeafNode)));
     HANDLE_ERROR(cudaMalloc(&internalNodes, (num_objects - 1) * sizeof(InternalNode)));
 
     /* compute morton code */
@@ -247,52 +247,30 @@ BVH::construct() {
     thrust::device_ptr<std::uint32_t> mortonCodes_d_ptr(mortonCodes);
     thrust::device_ptr<std::uint32_t> objectIDs_d_ptr(objectIDs);
     thrust::sort_by_key(mortonCodes_d_ptr, mortonCodes_d_ptr + num_objects, objectIDs_d_ptr);
+    printf("--> morton codes have been sorted.\n");
 
     std::cout << div_signs << "  Stage 4: Construct LBVH hierarchy.  " << div_signs << std::endl;
     /* construct leaf nodes */
-    thrust::device_ptr<LeafNode> leafNodes_d_ptr(LeafNodes);
+    thrust::device_ptr<LeafNode> leafNodes_d_ptr(leafNodes);
     thrust::transform(objectIDs_d_ptr, objectIDs_d_ptr + num_objects, leafNodes_d_ptr,
         [] __device__ (const std::uint32_t idx) {
             LeafNode leaf;
-            leaf.setObjectID(idx);
+            leaf.objectID = idx;
             
             return leaf;
         });
+    printf("--> leaf nodes have been constructed.\n");
     /* construct internal nodes */
-    construtInternalNodes_kernel<<<blocksPerGrid, threadsPerBlock>>>(mortonCodes, objectIDs, num_objects, internalNodes, LeafNodes, aabbs);
+    construtInternalNodes_kernel<<<blocksPerGrid, threadsPerBlock>>>(mortonCodes, objectIDs, num_objects, internalNodes, leafNodes, aabbs);
+    printf("--> internal nodes have been constructed.\n");
 
-
-    /* prepare for calculation parameters */
-    thrust::device_ptr<LeafNode> LeafNodes_d_ptr = thrust::device_pointer_cast(LeafNodes);
     /* create AABB for each node by bottom-up strategy */
-    thrust::for_each(thrust::device, 
-        thrust::make_counting_iterator<std::uint32_t>(num_internal_nodes),
-        thrust::make_counting_iterator<std::uint32_t>(num_nodes),
-        [LeafNodes_d_ptr] __device__ (std::uint32_t idx){
-            Node* nodeIdxParent = (thrust::raw_pointer_cast(LeafNodes_d_ptr) + idx)->parent;
+    createAABBHierarchy_Kernel<<<blocksPerGrid, threadsPerBlock>>>(num_objects, leafNodes);
+    printf("--> lbvh hierarchy has been constructed.\n");
 
-            while (nodeIdxParent != nullptr) {
-                const int old = atomicCAS(&nodeIdxParent->updateFlag, 0, 1);
-                if (old == 0) {
-                    /* first thread entered here. 
-                        Wait the other thread from the other child node. */ 
-                    return;
-                }
-                assert(old == 1);
-                /* old has been one, another thead can access here. merge its child's AABB boxes. */
-                nodeIdxParent->bbox = merge(nodeIdxParent->childA->bbox, nodeIdxParent->childB->bbox);
-                /* reading global memory is a blocking process, but writing action doesn't. The thread
-                    will continue working rather than wait until the writing completed. */
-                __threadfence();
-                /* get next parent */
-                nodeIdxParent = nodeIdxParent->parent;
-            }
-
-            return;
-        });
-    
     return;
 }
+
 
 BVH::~BVH() {
     HANDLE_ERROR(cudaFree(triangle_indices_d_));
@@ -300,7 +278,6 @@ BVH::~BVH() {
     HANDLE_ERROR(cudaFree(normals_d_));
     HANDLE_ERROR(cudaFree(aabbs));
 }
-
 
 /**
  * @brief In order to construct a binary radix tree, we need to determine 
@@ -406,7 +383,7 @@ findSplit(std::uint32_t* sortedMortonCodes, int first, int last) {
 
 
 __global__ void 
-computeBBoxes_kernel(const std::uint32_t& num_objects, triangle_t* triangles, vec3f* vertices, AABB* aabbs) {
+computeBBoxes_kernel(const std::uint32_t num_objects, triangle_t* triangles, vec3f* vertices, AABB* aabbs) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx > num_objects - 1) {
         return;
@@ -422,7 +399,7 @@ computeBBoxes_kernel(const std::uint32_t& num_objects, triangle_t* triangles, ve
 
 __global__ void 
 computeMortonCode_kernel(std::uint32_t num_objects, std::uint32_t* objectIDs, 
-                            AABB& aabb_bound, AABB* aabbs, std::uint32_t* mortonCodes) {
+                            AABB aabb_bound, AABB* aabbs, std::uint32_t* mortonCodes) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx > num_objects - 1) {
         return; 
@@ -481,6 +458,34 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
     // Node 0 is the root.
 }
 
+
+__global__ void
+createAABBHierarchy_Kernel(int num_objects, LeafNodePtr leafNodes) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx > num_objects - 1)
+        return;
+
+    Node* nodeIdxParent = (leafNodes + idx)->parent;
+
+    while (nodeIdxParent != nullptr) {
+        const int old = atomicCAS(&nodeIdxParent->updateFlag, 0, 1);
+        if (old == 0) {
+            /* first thread entered here. 
+                Wait the other thread from the other child node. */ 
+            return;
+        }
+        assert(old == 1);
+        /* old has been one, another thead can access here. merge its child's AABB boxes. */
+        nodeIdxParent->bbox = merge(nodeIdxParent->childA->bbox, nodeIdxParent->childB->bbox);
+        /* reading global memory is a blocking process, but writing action doesn't. The thread
+            will continue working rather than wait until the writing completed. */
+        __threadfence();
+        /* get next parent */
+        nodeIdxParent = nodeIdxParent->parent;
+    }
+
+    return;
+}
 
 void cudaDevInfo() {
     int deviceCount;
