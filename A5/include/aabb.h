@@ -42,19 +42,6 @@ public:
     __host__ __device__
     AABB(vec3f bmin, vec3f bmax) : bmin(bmin), bmax(bmax) {}
 
-    __host__ __device__ __inline__ bool 
-    overlaps(const AABB& other) const {
-        if (bmin.x > other.bmax.x) return false;
-        if (bmin.y > other.bmax.y) return false;
-        if (bmin.z > other.bmax.z) return false;
-
-        if (bmax.x < other.bmin.x) return false;
-        if (bmax.y < other.bmin.y) return false;
-        if (bmax.z < other.bmin.z) return false;
-
-        return true;
-    }
-
     __host__ __device__ __inline__ float
     getWidth () const {
         return bmax.x - bmin.x;
@@ -85,6 +72,7 @@ public:
         this->bmin = other.bmin;
         this->bmax = other.bmax;
     }
+
 };
 
 __host__ __device__ __inline__
@@ -98,6 +86,19 @@ AABB merge(const AABB& lhs, const AABB& rhs) {
     merged.bmin.z = fminf(lhs.bmin.z, rhs.bmin.z);
     
     return merged;
+}
+
+__host__ __device__ __inline__ bool 
+overlaps(const AABB& lhs, const AABB& rhs) {
+    if (lhs.bmin.x > rhs.bmax.x) return false;
+    if (lhs.bmin.y > rhs.bmax.y) return false;
+    if (lhs.bmin.z > rhs.bmax.z) return false;
+
+    if (lhs.bmax.x < rhs.bmin.x) return false;
+    if (lhs.bmax.y < rhs.bmin.y) return false;
+    if (lhs.bmax.z < rhs.bmin.z) return false;
+
+    return true;
 }
 
 }

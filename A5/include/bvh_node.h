@@ -29,17 +29,16 @@
 
 namespace lbvh {
 
-typedef struct Node* NodePtr;
-typedef struct InternalNode* InternalNodePtr;
-typedef struct LeafNode* LeafNodePtr;
 
-
-struct Node {
+class Node {
+public:
     __device__
-    Node() : childA(nullptr), childB(nullptr), parent(nullptr), updateFlag(0), isLeaf(false) {}
-
-    NodePtr childA;
-    NodePtr childB;
+    Node() : leftChild(nullptr), rightChild(nullptr), parent(nullptr), updateFlag(0), isLeaf(false) {}
+    /* virtual destructor can avoid memory leak through 
+    safely destroy derived class and base class in order. */
+    virtual ~Node() {};
+    NodePtr leftChild;
+    NodePtr rightChild;
     NodePtr parent;
     int updateFlag;
     bool isLeaf;
@@ -48,7 +47,8 @@ struct Node {
 
 
 
-struct InternalNode : public Node {
+class InternalNode : public Node {
+public:
     using Node::Node; // Inheriting Constructor
 
     __device__
@@ -59,7 +59,8 @@ struct InternalNode : public Node {
 };
 
 
-struct LeafNode : public Node {
+class LeafNode : public Node {
+public:
     using Node::Node; // Inheriting Constructor
 
     __device__
@@ -70,6 +71,10 @@ struct LeafNode : public Node {
     std::uint32_t objectID;
 
 };
+
+typedef Node* NodePtr;
+typedef InternalNode* InternalNodePtr;
+typedef LeafNode* LeafNodePtr;
 
 }
 

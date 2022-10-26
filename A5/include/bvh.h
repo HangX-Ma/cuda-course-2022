@@ -26,16 +26,40 @@
 #include "bvh_node.h"
 #include "morton_code.h"
 #include "triangle.h"
+#include "query.h"
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
 namespace lbvh {
 
+enum class BVH_STATUS {
+    STATE_INITIAL,
+    STATE_CONSTRUCT,
+    STATE_GET_NEIGHBOUR,
+};
+
+
+typedef struct bvh_device bvh_device;
+
+struct bvh_device {
+    std::uint32_t num_nodes;
+    std::uint32_t num_objects;
+    
+    InternalNodePtr internalNodes;  //!< num_objects - 1
+    LeafNodePtr leafNodes;          //!< num_objects
+    AABB* aabbs_d_;
+    std::uint32_t* objectIDs;
+};
+
+
 class BVH {
 
 public:
-    BVH() {};
-    ~BVH();
+    __host__ __inline__ static BVH*
+    getInstance() {
+        static BVH bvh;
+        return &bvh;
+    }
 
     __host__ void 
     construct();
@@ -45,22 +69,63 @@ public:
 
     __host__ triangle_t*
     getTriangleList() {
-        return triangle_indices_h_.data();
+        if (bvh_status != BVH_STATUS::STATE_INITIAL) {
+            return triangle_indices_h_.data();
+        }
+        return nullptr;
     }
 
     __host__ vec3f*
     getVerticeList() {
-        return vertices_h_.data();
+        if (bvh_status != BVH_STATUS::STATE_INITIAL) {
+            return vertices_h_.data();
+        }
+        return nullptr;
     }
 
     __host__ std::uint32_t
     getOjbectNum() {
-        return static_cast<std::uint32_t>(triangle_indices_h_.size());
+        if (bvh_status != BVH_STATUS::STATE_INITIAL) {
+            return static_cast<std::uint32_t>(triangle_indices_h_.size());
+        }
+        return NULL;
+    }
+    
+    __host__ bvh_device 
+    getDevPtrs() {
+        if (bvh_status != BVH_STATUS::STATE_INITIAL) {
+            return bvh_device{ 2 * num_objects - 1, num_objects, 
+                            internalNodes, leafNodes, aabbs_d_, objectIDs};
+        }
+        return bvh_device{NULL, NULL, nullptr, nullptr, nullptr, nullptr};
     }
 
+    /**
+     * @brief Get the neighbour information
+     * @note adjInfo_d_ store the adjacent objectIDs
+     */
+    __device__ void 
+    getNbInfo() {
+        adjInfo_d_.clear();
+        adjInfo_d_.resize(num_objects);
+        thrust::for_each(thrust::device,
+            thrust::make_counting_iterator<std::size_t>(0),
+            thrust::make_counting_iterator<std::size_t>(num_objects),
+            [this] __device__ (std::uint32_t idx) {
+                lbvh::query_device(aabbs_d_ + idx, aabbs_d_, internalNodes, adjInfo_d_.data() + idx, 20);
+            });
+    }
+
+
 private:
+    BVH() {};
+    ~BVH();
+
+    BVH_STATUS bvh_status = BVH_STATUS::STATE_INITIAL;
+
     std::uint32_t* mortonCodes;
     std::uint32_t* objectIDs;
+    std::uint32_t num_objects;
 
     InternalNodePtr internalNodes;  //!< num_objects - 1
     LeafNodePtr leafNodes;          //!< num_objects
@@ -72,8 +137,9 @@ private:
     triangle_t* triangle_indices_d_;
     vec3f* vertices_d_;
     vec3f* normals_d_;
-    AABB* aabbs;
-
+    AABB* aabbs_d_;
+    
+    thrust::device_vector<thrust::device_vector<std::uint32_t>> adjInfo_d_;
 };
 
 

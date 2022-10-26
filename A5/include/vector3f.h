@@ -30,27 +30,53 @@ namespace lbvh {
 
 constexpr float GLH_EPSILON = 1e-6f;
 
-typedef struct vec3f vec3f;
+class vec3f {
+public:
+    /* variable */
+    union {
+        struct {
+        float x, y, z;
+        };
+        struct {
+        float v[3];
+        };
+    };
 
-struct vec3f {
     /* constructor */
     __host__ __device__
     vec3f() : x(0.0f), y(0.0f), z(0.0f) {}
 
     __host__ __device__
-    vec3f(float x, float y, float z) : x(x), y(y), z(z) {}
+    vec3f(float x, float y, float z) {
+        this->x = x;
+        this->y = y;
+        this->z = z;
+    }
 
     __host__ __device__
-    vec3f(const vec3f& v) : x(v.x), y(v.y), z(v.z) {}
-
+    vec3f(const vec3f& v) {
+        this->x = v.x;
+        this->y = v.y;
+        this->z = v.z;
+    }
     __host__ __device__
-    explicit vec3f(float a) : x(a), y(a), z(a) {}
-    
+    explicit vec3f(float a) {
+        this->x = a;
+        this->y = a;
+        this->z = a;
+    }
     __host__ __device__
-    explicit vec3f(float* a) : x(a[0]), y(a[1]), z(a[2]) {}
+    explicit vec3f(float* a)  {
+        this->x = a[0];
+        this->y = a[1];
+        this->z = a[2];
+    }
 
-    /* variable */
-    float x, y, z;
+    __host__ __device__ float
+    operator [] ( int i ) const {return v[i];}
+
+    __host__ __device__ float&
+    operator [] (int i) { return v[i]; }
 
     /* overload method */
     __host__ __device__ vec3f

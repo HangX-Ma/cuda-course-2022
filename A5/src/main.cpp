@@ -1,6 +1,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 #include "tiny_obj_loader.h"
 #include "optionparser.h"
+#include "book.h"
 #include "bvh.h"
 #include "obj-viewer.h"
 
@@ -8,9 +9,9 @@
 #include <string>
 #include <vector>
 
-std::uint32_t G_num_objects;
-lbvh::triangle_t* G_triangles;
-lbvh::vec3f* G_vertices;
+std::uint32_t gNumObjects = NULL;
+lbvh::triangle_t* gTriangles = nullptr;
+lbvh::vec3f* gVertices = nullptr;
 
 
 struct Arg: public option::Arg
@@ -75,13 +76,16 @@ int main(int argc, char* argv[])
 
         init();
         std::string objFilePath(options[FILE_PATH].arg);
-        lbvh::BVH objBVH;
-        objBVH.loadObj(objFilePath);
-        objBVH.construct();
-
-        G_num_objects = objBVH.getOjbectNum();
-        G_triangles = objBVH.getTriangleList();
-        G_vertices = objBVH.getVerticeList();
+        lbvh::BVH* objBVH = lbvh::BVH::getInstance();
+        objBVH->loadObj(objFilePath);
+        objBVH->construct();
+        
+        gNumObjects = objBVH->getOjbectNum();
+        gTriangles = objBVH->getTriangleList();
+        gVertices = objBVH->getVerticeList();
+        HANDLE_NULL(gNumObjects);
+        HANDLE_NULL(gTriangles);
+        HANDLE_NULL(gVertices);
 
         glutDisplayFunc(display);
         glutReshapeFunc(reshape);

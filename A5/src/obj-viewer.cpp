@@ -11,9 +11,11 @@ const float ZOOM_SPEED = 0.1f;
 const float ROTATE_SPEED = 0.1f;
 float       DISTANCE = 4.0f;
 
-extern std::uint32_t G_num_objects;
-extern lbvh::triangle_t* G_triangles;
-extern lbvh::vec3f* G_vertices;
+extern std::uint32_t gNumObjects;
+extern lbvh::triangle_t* gTriangles;
+extern lbvh::vec3f* gVertices;
+
+extern void startHeatTransfer(); 
 
 
 void switch_render_mode(bool mode) {
@@ -65,10 +67,10 @@ void draw_obj() {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
  
-    for (int idx = 0; idx < G_num_objects; idx++) {
-        lbvh::vec3f vecA = G_vertices[G_triangles[idx].a.vertex_index];
-        lbvh::vec3f vecB = G_vertices[G_triangles[idx].b.vertex_index];
-        lbvh::vec3f vecC = G_vertices[G_triangles[idx].c.vertex_index];
+    for (int idx = 0; idx < gNumObjects; idx++) {
+        lbvh::vec3f vecA = gVertices[gTriangles[idx].a.vertex_index];
+        lbvh::vec3f vecB = gVertices[gTriangles[idx].b.vertex_index];
+        lbvh::vec3f vecC = gVertices[gTriangles[idx].c.vertex_index];
 
         GLdouble normal[3];
         calculate_normal(vecA, vecB, vecC, normal);
@@ -130,6 +132,9 @@ void keyboard(unsigned char key, int x, int y) {
             break;
         case 'w':
             render_mode = false;
+            break;
+        case 'd':
+            startHeatTransfer();
             break;
         default:
             break;
