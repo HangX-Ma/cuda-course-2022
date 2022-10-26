@@ -32,8 +32,8 @@ namespace lbvh {
 
 // query object indices that potentially overlaps with query aabb.
 __device__ std::uint32_t 
-query_device(AABB* target, AABB* aabbs, InternalNodePtr internalNodes, 
-    thrust::device_ptr<std::uint32_t> outBuffer, const std::uint32_t max_buffer_size = 0xFFFFFFFF) {
+query_device(AABB* target, InternalNodePtr internalNodes, 
+    std::uint32_t* outBuffer, const std::uint32_t max_buffer_size = 0xFFFFFFFF) {
 
     Node* stack[64];
     NodePtr* stackPtr = stack;

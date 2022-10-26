@@ -12,6 +12,7 @@
 std::uint32_t gNumObjects = NULL;
 lbvh::triangle_t* gTriangles = nullptr;
 lbvh::vec3f* gVertices = nullptr;
+lbvh::vec3f* gNormals = nullptr;
 
 
 struct Arg: public option::Arg
@@ -76,16 +77,18 @@ int main(int argc, char* argv[])
 
         init();
         std::string objFilePath(options[FILE_PATH].arg);
-        lbvh::BVH* objBVH = lbvh::BVH::getInstance();
-        objBVH->loadObj(objFilePath);
-        objBVH->construct();
+        lbvh::BVH* bvhInstancePtr = lbvh::BVH::getInstance();
+        bvhInstancePtr->loadObj(objFilePath);
+        bvhInstancePtr->construct();
         
-        gNumObjects = objBVH->getOjbectNum();
-        gTriangles = objBVH->getTriangleList();
-        gVertices = objBVH->getVerticeList();
+        gNumObjects = bvhInstancePtr->getOjbectNum();
+        gTriangles = bvhInstancePtr->getTriangleList();
+        gVertices = bvhInstancePtr->getVerticeList();
+        gNormals = bvhInstancePtr->getNormalList();
         HANDLE_NULL(gNumObjects);
         HANDLE_NULL(gTriangles);
         HANDLE_NULL(gVertices);
+        HANDLE_NULL(gNormals);
 
         glutDisplayFunc(display);
         glutReshapeFunc(reshape);

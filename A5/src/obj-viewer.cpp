@@ -1,6 +1,7 @@
 #include "obj-viewer.h"
 #include "triangle.h"
 #include "vector3f.h"
+#include <thrust/host_vector.h>
 
 const struct OBJ_COLOR OBJ_COLOR;
 struct camera camera;
@@ -14,7 +15,10 @@ float       DISTANCE = 4.0f;
 extern std::uint32_t gNumObjects;
 extern lbvh::triangle_t* gTriangles;
 extern lbvh::vec3f* gVertices;
+extern lbvh::vec3f* gNormals;
 
+extern thrust::host_vector<float> gIntensity_h_;
+extern volatile bool dstOut;
 extern void startHeatTransfer(); 
 
 
@@ -71,16 +75,41 @@ void draw_obj() {
         lbvh::vec3f vecA = gVertices[gTriangles[idx].a.vertex_index];
         lbvh::vec3f vecB = gVertices[gTriangles[idx].b.vertex_index];
         lbvh::vec3f vecC = gVertices[gTriangles[idx].c.vertex_index];
+        lbvh::vec3f nrmA = gNormals[gTriangles[idx].a.normal_index];
+        lbvh::vec3f nrmB = gNormals[gTriangles[idx].b.normal_index];
+        lbvh::vec3f nrmC = gNormals[gTriangles[idx].c.normal_index];
 
-        GLdouble normal[3];
-        calculate_normal(vecA, vecB, vecC, normal);
-        glBegin(GL_TRIANGLES);
-        glColor3f(OBJ_COLOR.red, OBJ_COLOR.green, OBJ_COLOR.blue);
-        glNormal3dv(normal);
-        glVertex3d(vecA.x, vecA.y, vecA.z);
-        glVertex3d(vecB.x, vecB.y, vecB.z);
-        glVertex3d(vecC.x, vecC.y, vecC.z);
-        glEnd();
+        if (dstOut == NULL) {
+            glEnable(GL_LIGHTING);
+            glBegin(GL_TRIANGLES);
+            glColor3f(OBJ_COLOR.red, OBJ_COLOR.green, OBJ_COLOR.blue);
+            glNormal3dv((const GLdouble*)nrmA.v);
+            glVertex3dv((const GLdouble*)vecA.v);
+            glNormal3dv((const GLdouble*)nrmB.v);
+            glVertex3dv((const GLdouble*)vecB.v);
+            glNormal3dv((const GLdouble*)nrmC.v);
+            glVertex3dv((const GLdouble*)vecC.v);
+            glEnd();
+            glDisable(GL_LIGHTING);
+        }
+        else {
+            float tt = gIntensity_h_[idx];
+            GLfloat matDiff[4] = { 1.0, 1.0, 0.0, 1.0 };
+            matDiff[1] = 1 - tt;
+            matDiff[0] = tt;
+
+            glEnable(GL_LIGHTING);
+            glBegin(GL_TRIANGLES);
+            glMaterialfv(GL_FRONT, GL_DIFFUSE, matDiff);
+            glNormal3dv((const GLdouble*)nrmA.v);
+            glVertex3dv((const GLdouble*)vecA.v);
+            glNormal3dv((const GLdouble*)nrmB.v);
+            glVertex3dv((const GLdouble*)vecB.v);
+            glNormal3dv((const GLdouble*)nrmC.v);
+            glVertex3dv((const GLdouble*)vecC.v);
+            glEnd();
+            glDisable(GL_LIGHTING);
+        }
     }
 
     glFlush();
