@@ -20,8 +20,8 @@
  * limitations under the License.
  */
 
-#ifndef __VIEWER_H__
-#define __VIEWER_H__
+#ifndef __OBJ_VIEWER_H__
+#define __OBJ_VIEWER_H__
 
 
 #include <GL/glut.h>

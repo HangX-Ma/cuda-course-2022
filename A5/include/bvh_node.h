@@ -20,8 +20,8 @@
  * limitations under the License.
  */
 
-#ifndef __BVHNODE_H__
-#define __BVHNODE_H__
+#ifndef __BVH_NODE_H__
+#define __BVH_NODE_H__
 
 #include "aabb.h"
 #include <cstdint>
@@ -33,48 +33,19 @@ namespace lbvh {
 class Node {
 public:
     __device__
-    Node() : leftChild(nullptr), rightChild(nullptr), parent(nullptr), updateFlag(0), isLeaf(false) {}
+    Node() : leftChild(nullptr), rightChild(nullptr), parent(nullptr), 
+        updateFlag(0), isLeaf(false), objectID(0) {}
     /* virtual destructor can avoid memory leak through 
     safely destroy derived class and base class in order. */
-    virtual ~Node() {};
-    NodePtr leftChild;
-    NodePtr rightChild;
-    NodePtr parent;
+    // virtual ~Node() {};
+    Node* leftChild;
+    Node* rightChild;
+    Node* parent;
     int updateFlag;
     bool isLeaf;
     AABB bbox;
-};
-
-
-
-class InternalNode : public Node {
-public:
-    using Node::Node; // Inheriting Constructor
-
-    __device__
-    InternalNode() {
-        this->isLeaf = false;
-    }
-
-};
-
-
-class LeafNode : public Node {
-public:
-    using Node::Node; // Inheriting Constructor
-
-    __device__
-    LeafNode() : objectID(0) {
-        this->isLeaf = true;
-    }
-    
     std::uint32_t objectID;
-
 };
-
-typedef Node* NodePtr;
-typedef InternalNode* InternalNodePtr;
-typedef LeafNode* LeafNodePtr;
 
 }
 

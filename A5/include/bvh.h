@@ -26,11 +26,12 @@
 #include "bvh_node.h"
 #include "morton_code.h"
 #include "triangle.h"
-#include "query.h"
 #include <cuda_runtime.h>
 #include <thrust/device_free.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+
+#include <limits>
 
 namespace lbvh {
 
@@ -48,8 +49,8 @@ struct bvh_device {
     std::uint32_t num_nodes;
     std::uint32_t num_objects;
     
-    InternalNodePtr internalNodes;  //!< num_objects - 1
-    LeafNodePtr leafNodes;          //!< num_objects
+    Node* internalNodes;  //!< num_objects - 1
+    Node* leafNodes;          //!< num_objects
     AABB* aabbs_d_;
     std::uint32_t* objectIDs;
 };
@@ -104,7 +105,7 @@ public:
         if (bvh_status != BVH_STATUS::STATE_INITIAL) {
             return static_cast<std::uint32_t>(triangle_indices_h_.size());
         }
-        return NULL;
+        return 0xFFFFFFFF;
     }
     
     __host__ std::uint32_t
@@ -112,7 +113,7 @@ public:
         if (bvh_status == BVH_STATUS::STATE_PROPAGATE) {
             return num_adjObjects;
         }
-        return NULL;
+        return 0xFFFFFFFF;
     }
 
     __host__ bvh_device 
@@ -121,51 +122,15 @@ public:
             return bvh_device{ 2 * num_objects - 1, num_objects, 
                             internalNodes, leafNodes, aabbs_d_, objectIDs};
         }
-        return bvh_device{NULL, NULL, nullptr, nullptr, nullptr, nullptr};
+        return bvh_device{0xFFFFFFFF, 0xFFFFFFFF, nullptr, nullptr, nullptr, nullptr};
     }
 
     /**
      * @brief Get the neighbour information
      * @note adjInfo_d_ store the adjacent objectIDs
      */
-    __device__ void 
-    getNbInfo() {
-        if (bvh_status != BVH_STATUS::STATE_GET_NEIGHBOUR) {
-            printf("Please call this method at STATE_GET_NEIGHBOUR.\n");
-            return;
-        }
-        
-        /* before we use thrust vector, we need to allocate memory for it first. */
-        /* NOTE: This is a dynamic memory allocation process !!!  */
-        cudaMalloc((void**)(&adjObjNum_d_), num_objects * sizeof(std::uint32_t));
-        cudaMalloc((void**)(&adjObjInfo_d_), num_objects * sizeof(std::uint32_t*));
-
-        thrust::for_each(thrust::device,
-            thrust::make_counting_iterator<std::uint32_t>(0),
-            thrust::make_counting_iterator<std::uint32_t>(num_objects),
-            [this] __device__ (std::uint32_t idx) {
-                /* temporary device vector to store the neighbour's id  */
-                int max_buffer_size = 20;
-                thrust::device_vector<std::uint32_t>adjObject_vec(max_buffer_size);
-
-                /* query for each object's neighbour */
-                std::uint32_t adjObjNum = lbvh::query_device(aabbs_d_ + idx, internalNodes, adjObject_vec.data().get(), max_buffer_size);
-                adjObjNum_d_[idx] = adjObjNum;
-                num_adjObjects += adjObjNum;
-
-                /* allocate memory for current adjObjInfo group */
-                /* NOTE: This is a dynamic memory allocation process !!!  */
-                cudaMalloc((void**)(&adjObjInfo_d_[idx]), adjObjNum * sizeof(std::uint32_t));
-
-                /* copy data */
-                thrust::device_ptr<std::uint32_t>adjObjectPtr(adjObjInfo_d_[idx]);
-                thrust::copy(adjObject_vec.begin(), adjObject_vec.begin() + adjObjNum, adjObjectPtr);
-
-                /* free the memory */
-                thrust::device_free(adjObject_vec.data());
-            });
-        bvh_status = BVH_STATUS::STATE_PROPAGATE;
-    }
+    __host__ void 
+    getNbInfo();
     
     
     /**
@@ -186,8 +151,8 @@ private:
     std::uint32_t num_objects;
     std::uint32_t num_adjObjects;
 
-    InternalNodePtr internalNodes;  //!< num_objects - 1
-    LeafNodePtr leafNodes;          //!< num_objects
+    Node* internalNodes;  //!< num_objects - 1
+    Node* leafNodes;          //!< num_objects
 
     std::vector<triangle_t> triangle_indices_h_;
     std::vector<vec3f> vertices_h_;

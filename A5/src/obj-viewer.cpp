@@ -15,10 +15,9 @@ float       DISTANCE = 4.0f;
 extern std::uint32_t gNumObjects;
 extern lbvh::triangle_t* gTriangles;
 extern lbvh::vec3f* gVertices;
-extern lbvh::vec3f* gNormals;
 
-extern thrust::host_vector<float> gIntensity_h_;
-extern volatile bool dstOut;
+extern float* gIntensity_h_;
+extern volatile int dstOut;
 extern void startHeatTransfer(); 
 
 
@@ -75,20 +74,17 @@ void draw_obj() {
         lbvh::vec3f vecA = gVertices[gTriangles[idx].a.vertex_index];
         lbvh::vec3f vecB = gVertices[gTriangles[idx].b.vertex_index];
         lbvh::vec3f vecC = gVertices[gTriangles[idx].c.vertex_index];
-        lbvh::vec3f nrmA = gNormals[gTriangles[idx].a.normal_index];
-        lbvh::vec3f nrmB = gNormals[gTriangles[idx].b.normal_index];
-        lbvh::vec3f nrmC = gNormals[gTriangles[idx].c.normal_index];
 
-        if (dstOut == NULL) {
+        GLdouble normal[3];
+        calculate_normal(vecA, vecB, vecC, normal);
+        if (dstOut == -1) {
             glEnable(GL_LIGHTING);
             glBegin(GL_TRIANGLES);
             glColor3f(OBJ_COLOR.red, OBJ_COLOR.green, OBJ_COLOR.blue);
-            glNormal3dv((const GLdouble*)nrmA.v);
-            glVertex3dv((const GLdouble*)vecA.v);
-            glNormal3dv((const GLdouble*)nrmB.v);
-            glVertex3dv((const GLdouble*)vecB.v);
-            glNormal3dv((const GLdouble*)nrmC.v);
-            glVertex3dv((const GLdouble*)vecC.v);
+            glNormal3dv(normal);
+            glVertex3d(vecA.x, vecA.y, vecA.z);
+            glVertex3d(vecB.x, vecB.y, vecB.z);
+            glVertex3d(vecC.x, vecC.y, vecC.z);
             glEnd();
             glDisable(GL_LIGHTING);
         }
@@ -101,12 +97,10 @@ void draw_obj() {
             glEnable(GL_LIGHTING);
             glBegin(GL_TRIANGLES);
             glMaterialfv(GL_FRONT, GL_DIFFUSE, matDiff);
-            glNormal3dv((const GLdouble*)nrmA.v);
-            glVertex3dv((const GLdouble*)vecA.v);
-            glNormal3dv((const GLdouble*)nrmB.v);
-            glVertex3dv((const GLdouble*)vecB.v);
-            glNormal3dv((const GLdouble*)nrmC.v);
-            glVertex3dv((const GLdouble*)vecC.v);
+            glNormal3dv(normal);
+            glVertex3d(vecA.x, vecA.y, vecA.z);
+            glVertex3d(vecB.x, vecB.y, vecB.z);
+            glVertex3d(vecC.x, vecC.y, vecC.z);
             glEnd();
             glDisable(GL_LIGHTING);
         }

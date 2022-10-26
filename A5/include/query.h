@@ -25,6 +25,7 @@
 
 #include "aabb.h"
 #include "bvh_node.h"
+#include <cuda_runtime.h>
 #include <thrust/device_vector.h>
 
 namespace lbvh {
@@ -32,25 +33,25 @@ namespace lbvh {
 
 // query object indices that potentially overlaps with query aabb.
 __device__ std::uint32_t 
-query_device(AABB* target, InternalNodePtr internalNodes, 
+query_device(AABB* target, Node* internalNodes, 
     std::uint32_t* outBuffer, const std::uint32_t max_buffer_size = 0xFFFFFFFF) {
 
     Node* stack[64];
-    NodePtr* stackPtr = stack;
+    Node** stackPtr = stack;
     // root node is always zero
     *stackPtr++ = &internalNodes[0];
 
     std::uint32_t found_num = 0;
     do {
-        const NodePtr node      = *--stackPtr;
-        const NodePtr leftNode  = node->leftChild;
-        const NodePtr rightNode = node->rightChild;
+        Node* node = *--stackPtr;
+        Node* leftNode   = node->leftChild;
+        Node* rightNode  = node->rightChild;
 
         // check left child tree
         if (overlaps(*target, leftNode->bbox)) {
             if (leftNode->isLeaf) {
                 if (found_num < max_buffer_size) {
-                    *outBuffer++ = dynamic_cast<LeafNode *>(leftNode)->objectID;
+                    *outBuffer++ = (leftNode)->objectID;
                 }
                 ++found_num;
             } 
@@ -63,7 +64,7 @@ query_device(AABB* target, InternalNodePtr internalNodes,
         if (overlaps(*target, rightNode->bbox)) {
             if (rightNode->isLeaf) {
                 if (found_num < max_buffer_size) {
-                    *outBuffer++ = dynamic_cast<LeafNode *>(rightNode)->objectID;
+                    *outBuffer++ = (rightNode)->objectID;
                 }
                 ++found_num;
             } 

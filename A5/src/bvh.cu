@@ -1,10 +1,10 @@
 #include "tiny_obj_loader.h"
 
-#include "book.h"
+#include "common.h"
 #include "bvh.h"
 #include "morton_code.h"
+#include "query.h"
 
-#include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
 #include <thrust/functional.h>
@@ -36,18 +36,23 @@ findSplit(std::uint32_t* sortedMortonCodes, int first, int last);
 
 /* Kernel declaration */
 __global__ void 
-computeBBoxes_kernel(const std::uint32_t num_objects, triangle_t* trianglePtr, vec3f* verticePtr, AABB* aabbPtr);
+computeBBoxes_kernel(const std::uint32_t num_objects, 
+        triangle_t* trianglePtr, vec3f* verticePtr, AABB* aabbPtr);
 
 __global__ void 
 computeMortonCode_kernel(std::uint32_t num_objects, std::uint32_t* objectIDs, 
-                            AABB aabb_bound, AABB* aabbs, std::uint32_t* mortonCodes);
+        AABB aabb_bound, AABB* aabbs, std::uint32_t* mortonCodes);
 
 __global__ void
-construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* sortedObjectIDs, int numObjects,
-                            InternalNodePtr internalNodes, LeafNodePtr leafNodes, AABB* bboxes);
+construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* sortedObjectIDs, 
+        int numObjects, Node* internalNodes, Node* leafNodes, AABB* bboxes);
 
 __global__ void
-createAABBHierarchy_Kernel(int num_objects, LeafNodePtr leafNodes);
+createAABBHierarchy_Kernel(int num_objects, Node* leafNodes);
+
+__global__ void 
+NbInfoScan_Kernel(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, 
+        std::uint32_t** adjObjInfo, std::uint32_t* adjObjNums, std::uint32_t* num_adjObjects);
 
 struct minUnaryFunc{
     __host__ __device__
@@ -244,8 +249,8 @@ BVH::construct() {
     /* ---------------- STAGE 2: build BVH Tree ---------------- */
     HANDLE_ERROR(cudaMalloc(&mortonCodes, num_objects * sizeof(std::uint32_t)));
     HANDLE_ERROR(cudaMalloc(&objectIDs, num_objects * sizeof(std::uint32_t)));
-    HANDLE_ERROR(cudaMalloc(&leafNodes, num_objects * sizeof(LeafNode)));
-    HANDLE_ERROR(cudaMalloc(&internalNodes, (num_objects - 1) * sizeof(InternalNode)));
+    HANDLE_ERROR(cudaMalloc(&leafNodes, num_objects * sizeof(Node)));
+    HANDLE_ERROR(cudaMalloc(&internalNodes, (num_objects - 1) * sizeof(Node)));
 
     /* compute morton code */
     std::cout << div_signs << "  Stage 3: Calculate morton codes.  " << div_signs << std::endl;
@@ -259,10 +264,11 @@ BVH::construct() {
 
     std::cout << div_signs << "  Stage 4: Construct LBVH hierarchy.  " << div_signs << std::endl;
     /* construct leaf nodes */
-    thrust::device_ptr<LeafNode> leafNodes_d_ptr(leafNodes);
+    thrust::device_ptr<Node> leafNodes_d_ptr(leafNodes);
     thrust::transform(objectIDs_d_ptr, objectIDs_d_ptr + num_objects, leafNodes_d_ptr,
         [] __device__ (const std::uint32_t idx) {
-            LeafNode leaf;
+            Node leaf;
+            leaf.isLeaf = true;
             leaf.objectID = idx;
             
             return leaf;
@@ -287,6 +293,27 @@ BVH::~BVH() {
     HANDLE_ERROR(cudaFree(vertices_d_));
     HANDLE_ERROR(cudaFree(normals_d_));
     HANDLE_ERROR(cudaFree(aabbs_d_));
+}
+
+__host__ void 
+BVH::getNbInfo() {
+    if (bvh_status != BVH_STATUS::STATE_GET_NEIGHBOUR) {
+        printf("Please call this method at STATE_GET_NEIGHBOUR.\n");
+        return;
+    }
+    
+    /* before we use thrust vector, we need to allocate memory for it first. */
+    /* NOTE: This is a dynamic memory allocation process !!!  */
+    cudaMalloc((void**)(&adjObjNum_d_), num_objects * sizeof(std::uint32_t));
+    cudaMalloc((void**)(&adjObjInfo_d_), num_objects * sizeof(std::uint32_t*));
+
+    /* kernel property */
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (num_objects - 1 + threadsPerBlock - 1) / threadsPerBlock;
+
+    NbInfoScan_Kernel<<<blocksPerGrid, threadsPerBlock>>>
+            (num_objects, aabbs_d_, internalNodes, adjObjInfo_d_, adjObjNum_d_, &num_adjObjects);
+    bvh_status = BVH_STATUS::STATE_PROPAGATE;
 }
 
 /**
@@ -427,7 +454,7 @@ computeMortonCode_kernel(std::uint32_t num_objects, std::uint32_t* objectIDs,
 
 __global__ void
 construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* sortedObjectIDs, int numObjects,
-                            InternalNodePtr internalNodes, LeafNodePtr leafNodes, AABB* bboxes) {
+                            Node* internalNodes, Node* leafNodes, AABB* bboxes) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx > numObjects - 2) {
         return;
@@ -442,7 +469,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
     int split = findSplit(sortedMortonCodes, first, last);
 
     // Select left child.
-    NodePtr leftChild;
+    Node* leftChild;
     if (split == first) {
         leftChild = &leafNodes[split];
     } // only one node remained, so that this node must be a leaf node
@@ -451,7 +478,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
     } 
 
     // Select right child.
-    NodePtr rightChild;
+    Node* rightChild;
     if (split + 1 == last) {
         rightChild = &leafNodes[split + 1];
     }
@@ -470,7 +497,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
 
 
 __global__ void
-createAABBHierarchy_Kernel(int num_objects, LeafNodePtr leafNodes) {
+createAABBHierarchy_Kernel(int num_objects, Node* leafNodes) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx > num_objects - 1)
         return;
@@ -496,6 +523,38 @@ createAABBHierarchy_Kernel(int num_objects, LeafNodePtr leafNodes) {
 
     return;
 }
+
+
+__global__ void 
+NbInfoScan_Kernel(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, std::uint32_t** adjObjInfo, std::uint32_t* adjObjNums, std::uint32_t* num_adjObjects) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx > num_object - 1) {
+        return;
+    }
+
+    /* temporary device vector to store the neighbour's id  */
+    int max_buffer_size = 20;
+    std::uint32_t* adjObjects; 
+    cudaMalloc((void**)&adjObjects, max_buffer_size * sizeof(std::uint32_t));
+
+    /* query for each object's neighbour */
+    std::uint32_t adjObjNum = lbvh::query_device(aabbs + idx, internalNodes, adjObjects, max_buffer_size);
+    adjObjNums[idx] = adjObjNum;
+    num_adjObjects += adjObjNum;
+
+    /* allocate memory for current adjObjInfo group */
+    /* NOTE: This is a dynamic memory allocation process !!!  */
+    cudaMalloc((void**)(&adjObjInfo[idx]), adjObjNum * sizeof(std::uint32_t));
+
+    /* copy data */
+    for (int i = 0; i < adjObjNum; i++ ) {
+        adjObjInfo[idx][i] = adjObjects[i];
+    }
+
+    /* free the memory */
+    cudaFree(adjObjects);
+}
+
 
 void cudaDevInfo() {
     int deviceCount;

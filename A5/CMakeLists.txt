@@ -32,7 +32,7 @@ if(${CUDA_FOUND})
     # set(CUDA_SOURCE_PROPERTY_FORMAT OBJ)
     set(CUDA_SEPARABLE_COMPILATION ON)
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-arch=sm_61;-O2;-G;-g")#根据具体GPU性能更改算力参数
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-arch=sm_61;-gencode=arch=compute_52,code=sm_52;-rdc=true;-O2;-G;-g")#根据具体GPU性能更改算力参数
     # Only when you have CUDA 8 or newer version (--expt-extended-lambda or --extended-lambda)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-Xcompiler;-fPIC")
 else(${CUDA_FOUND})
@@ -73,8 +73,6 @@ target_include_directories(template
 target_compile_options(template PUBLIC -Wno-deprecated-declarations)
 target_link_directories(template PRIVATE $ENV{CUDA_PATH}/targets/x86_64-linux/lib)
 target_link_libraries(template ${CUDA_LIBRARIES} ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
-
-
 
 set_target_properties(template PROPERTIES
     OUTPUT_NAME "heatTransfer3D"

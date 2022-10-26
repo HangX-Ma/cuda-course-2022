@@ -1,7 +1,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 #include "tiny_obj_loader.h"
 #include "optionparser.h"
-#include "book.h"
+#include "common.h"
 #include "bvh.h"
 #include "obj-viewer.h"
 
@@ -9,10 +9,14 @@
 #include <string>
 #include <vector>
 
-std::uint32_t gNumObjects = NULL;
+std::uint32_t gNumObjects = 0xFFFFFFFF;
+std::uint32_t gNumAdjObjects = 0xFFFFFFFF;
 lbvh::triangle_t* gTriangles = nullptr;
 lbvh::vec3f* gVertices = nullptr;
-lbvh::vec3f* gNormals = nullptr;
+
+extern float* gIntensity_h_;
+extern float* gIntensityIn_d_;
+extern float* gIntensityOut_d_;
 
 
 struct Arg: public option::Arg
@@ -80,15 +84,16 @@ int main(int argc, char* argv[])
         lbvh::BVH* bvhInstancePtr = lbvh::BVH::getInstance();
         bvhInstancePtr->loadObj(objFilePath);
         bvhInstancePtr->construct();
-        
+        bvhInstancePtr->getNbInfo();
+
         gNumObjects = bvhInstancePtr->getOjbectNum();
+        gNumAdjObjects = bvhInstancePtr->getAdjObjectNum();
         gTriangles = bvhInstancePtr->getTriangleList();
         gVertices = bvhInstancePtr->getVerticeList();
-        gNormals = bvhInstancePtr->getNormalList();
-        HANDLE_NULL(gNumObjects);
+        HANDLE_UINT32_NULL(gNumObjects);
+        HANDLE_UINT32_NULL(gNumAdjObjects);
         HANDLE_NULL(gTriangles);
         HANDLE_NULL(gVertices);
-        HANDLE_NULL(gNormals);
 
         glutDisplayFunc(display);
         glutReshapeFunc(reshape);
@@ -96,6 +101,10 @@ int main(int argc, char* argv[])
         glutKeyboardFunc(keyboard);
         glutMainLoop();
 
+        free(gIntensity_h_);
+        HANDLE_ERROR(cudaFree(gIntensityIn_d_));
+        HANDLE_ERROR(cudaFree(gIntensityOut_d_));
+        
         return 0;
     }
     
