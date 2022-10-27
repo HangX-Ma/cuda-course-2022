@@ -16,6 +16,10 @@
 
 #include <sys/stat.h> // check file status
 
+
+
+// #define DEBUG_INFO 1
+
 namespace lbvh {
 
 /* get common upper bits */
@@ -48,11 +52,11 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
         int numObjects, Node* internalNodes, Node* leafNodes, AABB* bboxes);
 
 __global__ void
-createAABBHierarchy_Kernel(int num_objects, Node* leafNodes);
+createAABBHierarchy_Kernel(int num_objects, Node* leafNodes, Node* internalNodes);
 
 __global__ void 
 NbInfoScan_Kernel(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, 
-        std::uint32_t** adjObjInfo, std::uint32_t* adjObjNums, std::uint32_t* num_adjObjects);
+        std::uint32_t** adjObjInfo, std::uint32_t* adjObjNums);
 
 struct minUnaryFunc{
     __host__ __device__
@@ -195,7 +199,7 @@ BVH::construct() {
     const std::uint32_t num_nodes          = num_objects * 2 - 1;
     /* kernel property */
     int threadsPerBlock = 256;
-    int blocksPerGrid = (num_objects - 1 + threadsPerBlock - 1) / threadsPerBlock;
+    int blocksPerGrid = (num_objects + threadsPerBlock - 1) / threadsPerBlock;
 
     /* stage info assistant  */
     printf("[Kernel property]\n block:              %d\n threads:            %d\n\n", 
@@ -204,6 +208,7 @@ BVH::construct() {
                 num_objects, num_internal_nodes, num_nodes);
     printf(" num_objects size:   %lu bytes\n aabbs size:         %lu bytes\n vertices size:      %lu bytes\n\n", 
                 num_objects * sizeof(triangle_t), num_objects * sizeof(AABB), normals_h_.size() * sizeof(vec3f));
+
     /* ---------------- STAGE 1: load objects ---------------- */
     /* allocte specific memory size */
     HANDLE_ERROR(cudaMalloc((void**)&triangle_indices_d_, num_objects * sizeof(triangle_t)));
@@ -237,6 +242,7 @@ BVH::construct() {
         maxUnaryFunc(),
         vec3f(-1e9f, -1e9f, -1e9f),
         maxBinaryFunc());
+
     aabb_bound.bmin = thrust::transform_reduce(
         aabb_d_ptr, aabb_d_ptr + num_objects,
         minUnaryFunc(),
@@ -265,11 +271,13 @@ BVH::construct() {
     std::cout << div_signs << "  Stage 4: Construct LBVH hierarchy.  " << div_signs << std::endl;
     /* construct leaf nodes */
     thrust::device_ptr<Node> leafNodes_d_ptr(leafNodes);
-    thrust::transform(objectIDs_d_ptr, objectIDs_d_ptr + num_objects, leafNodes_d_ptr,
-        [] __device__ (const std::uint32_t idx) {
+    thrust::for_each(thrust::device,
+        thrust::make_counting_iterator<std::uint32_t>(0),
+        thrust::make_counting_iterator<std::uint32_t>(num_objects),
+        [objectIDs_d_ptr, leafNodes_d_ptr] __device__ (const std::uint32_t idx) {
             Node leaf;
-            leaf.isLeaf = true;
-            leaf.objectID = idx;
+            leafNodes_d_ptr->isLeaf = true;
+            leafNodes_d_ptr->objectID = objectIDs_d_ptr[idx];
             
             return leaf;
         });
@@ -279,7 +287,7 @@ BVH::construct() {
     printf("--> internal nodes have been constructed.\n");
 
     /* create AABB for each node by bottom-up strategy */
-    createAABBHierarchy_Kernel<<<blocksPerGrid, threadsPerBlock>>>(num_objects, leafNodes);
+    createAABBHierarchy_Kernel<<<blocksPerGrid, threadsPerBlock>>>(num_objects, leafNodes, internalNodes);
     printf("--> lbvh hierarchy has been constructed.\n");
 
     bvh_status = BVH_STATUS::STATE_GET_NEIGHBOUR;
@@ -301,18 +309,26 @@ BVH::getNbInfo() {
         printf("Please call this method at STATE_GET_NEIGHBOUR.\n");
         return;
     }
-    
+    std::string div_signs(10, '-');
+    std::cout << div_signs << "  Stage 5: Get Triangles' adjecent neighbour." << div_signs << std::endl;
+
     /* before we use thrust vector, we need to allocate memory for it first. */
     /* NOTE: This is a dynamic memory allocation process !!!  */
-    cudaMalloc((void**)(&adjObjNum_d_), num_objects * sizeof(std::uint32_t));
-    cudaMalloc((void**)(&adjObjInfo_d_), num_objects * sizeof(std::uint32_t*));
+    HANDLE_ERROR(cudaMalloc((void**)(&adjObjNum_d_), num_objects * sizeof(std::uint32_t)));
+    HANDLE_ERROR(cudaMalloc((void**)(&adjObjInfo_d_), num_objects * sizeof(std::uint32_t*)));
 
     /* kernel property */
     int threadsPerBlock = 256;
-    int blocksPerGrid = (num_objects - 1 + threadsPerBlock - 1) / threadsPerBlock;
+    int blocksPerGrid = (num_objects + threadsPerBlock - 1) / threadsPerBlock;
 
     NbInfoScan_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-            (num_objects, aabbs_d_, internalNodes, adjObjInfo_d_, adjObjNum_d_, &num_adjObjects);
+            (num_objects, aabbs_d_, internalNodes, adjObjInfo_d_, adjObjNum_d_);
+    HANDLE_ERROR(cudaDeviceSynchronize());
+
+    thrust::device_ptr<std::uint32_t> adjObjNumSum_ptr(adjObjNum_d_);
+    num_adjObjects = thrust::reduce(adjObjNumSum_ptr, adjObjNumSum_ptr + num_objects, 0, thrust::plus<std::uint32_t>());
+
+    printf("--> Triangles: %u, AdjTriangles: %u\n", num_objects, num_adjObjects);
     bvh_status = BVH_STATUS::STATE_PROPAGATE;
 }
 
@@ -342,7 +358,7 @@ determineRange(std::uint32_t* sortedMortonCodes, int num_objects, int idx) {
     so that we can get the minimum common prefix according to direction */
     commonPrefix_R = commonUpperBits(sortedMortonCodes[idx], sortedMortonCodes[idx+1]);
     commonPrefix_L = commonUpperBits(sortedMortonCodes[idx], sortedMortonCodes[idx-1]);
-    direction = commonPrefix_L - commonPrefix_R > 0 ? -1 : 1;
+    direction = (commonPrefix_L - commonPrefix_R) > 0 ? -1 : 1;
 
     int commonPrefix_min = commonUpperBits(sortedMortonCodes[idx], sortedMortonCodes[idx - direction]);
 
@@ -369,7 +385,7 @@ determineRange(std::uint32_t* sortedMortonCodes, int num_objects, int idx) {
         t = t >> 1;
     }
     /* precise upper bound index */
-    int jdx = idx + l * direction;
+    std::uint32_t jdx = idx + l * direction;
 
     /* make sure that idx < jdx */
     if (direction < 0) {
@@ -426,10 +442,14 @@ computeBBoxes_kernel(const std::uint32_t num_objects, triangle_t* triangles, vec
         return;
     } // leaf node index range [0, n - 1]
 
-    aabbs[idx].bmax = vmax(vertices[triangles[idx].a.vertex_index], vertices[triangles[idx].b.vertex_index]);
-    aabbs[idx].bmin = vmin(vertices[triangles[idx].a.vertex_index], vertices[triangles[idx].b.vertex_index]);
-    aabbs[idx].bmax = vmax(vertices[triangles[idx].c.vertex_index], aabbs[idx].bmax);
-    aabbs[idx].bmin = vmin(vertices[triangles[idx].c.vertex_index], aabbs[idx].bmin);
+    vec3f triA_vec = vertices[triangles[idx].a.vertex_index];
+    vec3f triB_vec = vertices[triangles[idx].b.vertex_index];
+    vec3f triC_vec = vertices[triangles[idx].c.vertex_index];
+
+    aabbs[idx].bmax = vmax(triA_vec, triB_vec);
+    aabbs[idx].bmin = vmin(triA_vec, triB_vec);
+    aabbs[idx].bmax = vmax(triC_vec, aabbs[idx].bmax);
+    aabbs[idx].bmin = vmin(triC_vec, aabbs[idx].bmin);
 }
 
 
@@ -439,7 +459,7 @@ computeMortonCode_kernel(std::uint32_t num_objects, std::uint32_t* objectIDs,
                             AABB aabb_bound, AABB* aabbs, std::uint32_t* mortonCodes) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx > num_objects - 1) {
-        return; 
+        return;
     } // leaf node index range [0, n - 1]
 
     objectIDs[idx] = idx;
@@ -459,6 +479,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
     if (idx > numObjects - 2) {
         return;
     } // internal nodes index range [0, n - 2]
+    internalNodes[idx].isLeaf = false;
 
     /* Find out which range of objects the node corresponds to. */
     int2 range = determineRange(sortedMortonCodes, numObjects, idx);
@@ -472,6 +493,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
     Node* leftChild;
     if (split == first) {
         leftChild = &leafNodes[split];
+        leftChild->bbox = bboxes[split];
     } // only one node remained, so that this node must be a leaf node
     else {
         leftChild = &internalNodes[split];
@@ -481,6 +503,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
     Node* rightChild;
     if (split + 1 == last) {
         rightChild = &leafNodes[split + 1];
+        rightChild->bbox = bboxes[split + 1];
     }
     else {
         rightChild = &internalNodes[split + 1];
@@ -497,7 +520,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
 
 
 __global__ void
-createAABBHierarchy_Kernel(int num_objects, Node* leafNodes) {
+createAABBHierarchy_Kernel(int num_objects, Node* leafNodes, Node* internalNodes) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx > num_objects - 1)
         return;
@@ -514,6 +537,16 @@ createAABBHierarchy_Kernel(int num_objects, Node* leafNodes) {
         assert(old == 1);
         /* old has been one, another thead can access here. merge its child's AABB boxes. */
         nodeIdxParent->bbox = merge(nodeIdxParent->leftChild->bbox, nodeIdxParent->rightChild->bbox);
+
+        #if DEBUG_INFO
+        printf("* parent idx (%d) bmin(%0.6f,%0.6f,%0.6f) bmax(%0.6f,%0.6f,%0.6f) \n"
+                "* leftChild is_leaf(%d) bmin(%0.6f,%0.6f,%0.6f) bmax(%0.6f,%0.6f,%0.6f) \n"
+                "* rightChild is_leaf(%d) bmin(%0.6f,%0.6f,%0.6f) bmax(%0.6f,%0.6f,%0.6f) \n",
+                nodeIdxParent - internalNodes, nodeIdxParent->bbox.bmin.x , nodeIdxParent->bbox.bmin.y,nodeIdxParent->bbox.bmin.z, nodeIdxParent->bbox.bmax.x , nodeIdxParent->bbox.bmax.y, nodeIdxParent->bbox.bmax.z,
+                nodeIdxParent->leftChild->isLeaf, nodeIdxParent->leftChild->bbox.bmin.x, nodeIdxParent->leftChild->bbox.bmin.y , nodeIdxParent->leftChild->bbox.bmin.z, nodeIdxParent->leftChild->bbox.bmax.x, nodeIdxParent->leftChild->bbox.bmax.y, nodeIdxParent->leftChild->bbox.bmax.z ,
+                nodeIdxParent->rightChild->isLeaf, nodeIdxParent->rightChild->bbox.bmin.x, nodeIdxParent->rightChild->bbox.bmin.y , nodeIdxParent->rightChild->bbox.bmin.z, nodeIdxParent->rightChild->bbox.bmax.x, nodeIdxParent->rightChild->bbox.bmax.y, nodeIdxParent->rightChild->bbox.bmax.z );
+        #endif
+        
         /* reading global memory is a blocking process, but writing action doesn't. The thread
             will continue working rather than wait until the writing completed. */
         __threadfence();
@@ -526,7 +559,7 @@ createAABBHierarchy_Kernel(int num_objects, Node* leafNodes) {
 
 
 __global__ void 
-NbInfoScan_Kernel(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, std::uint32_t** adjObjInfo, std::uint32_t* adjObjNums, std::uint32_t* num_adjObjects) {
+NbInfoScan_Kernel(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, std::uint32_t** adjObjInfo, std::uint32_t* adjObjNums) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx > num_object - 1) {
         return;
@@ -540,7 +573,6 @@ NbInfoScan_Kernel(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, st
     /* query for each object's neighbour */
     std::uint32_t adjObjNum = lbvh::query_device(aabbs + idx, internalNodes, adjObjects, max_buffer_size);
     adjObjNums[idx] = adjObjNum;
-    num_adjObjects += adjObjNum;
 
     /* allocate memory for current adjObjInfo group */
     /* NOTE: This is a dynamic memory allocation process !!!  */

@@ -89,7 +89,7 @@ AABB merge(const AABB& lhs, const AABB& rhs) {
 }
 
 __host__ __device__ __inline__ bool 
-overlaps(const AABB& lhs, const AABB& rhs) {
+overlaps(const AABB lhs, const AABB rhs) {
     if (lhs.bmin.x > rhs.bmax.x) return false;
     if (lhs.bmin.y > rhs.bmax.y) return false;
     if (lhs.bmin.z > rhs.bmax.z) return false;

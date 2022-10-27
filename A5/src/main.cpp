@@ -9,15 +9,12 @@
 #include <string>
 #include <vector>
 
+
 std::uint32_t gNumObjects = 0xFFFFFFFF;
-std::uint32_t gNumAdjObjects = 0xFFFFFFFF;
 lbvh::triangle_t* gTriangles = nullptr;
 lbvh::vec3f* gVertices = nullptr;
 
-extern float* gIntensity_h_;
-extern float* gIntensityIn_d_;
-extern float* gIntensityOut_d_;
-
+extern void quit_heatTransfer();
 
 struct Arg: public option::Arg
 {
@@ -87,11 +84,9 @@ int main(int argc, char* argv[])
         bvhInstancePtr->getNbInfo();
 
         gNumObjects = bvhInstancePtr->getOjbectNum();
-        gNumAdjObjects = bvhInstancePtr->getAdjObjectNum();
         gTriangles = bvhInstancePtr->getTriangleList();
         gVertices = bvhInstancePtr->getVerticeList();
         HANDLE_UINT32_NULL(gNumObjects);
-        HANDLE_UINT32_NULL(gNumAdjObjects);
         HANDLE_NULL(gTriangles);
         HANDLE_NULL(gVertices);
 
@@ -101,9 +96,7 @@ int main(int argc, char* argv[])
         glutKeyboardFunc(keyboard);
         glutMainLoop();
 
-        free(gIntensity_h_);
-        HANDLE_ERROR(cudaFree(gIntensityIn_d_));
-        HANDLE_ERROR(cudaFree(gIntensityOut_d_));
+        quit_heatTransfer();
         
         return 0;
     }

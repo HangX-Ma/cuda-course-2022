@@ -52,13 +52,7 @@ public:
         this->y = y;
         this->z = z;
     }
-
-    __host__ __device__
-    vec3f(const vec3f& v) {
-        this->x = v.x;
-        this->y = v.y;
-        this->z = v.z;
-    }
+    
     __host__ __device__
     explicit vec3f(float a) {
         this->x = a;
@@ -120,7 +114,7 @@ public:
     operator/=(const vec3f& rhs){ x /= rhs.x; y /= rhs.y; z /= rhs.z; return *this; }
 
     __host__ __device__ __inline__ vec3f& 
-    set_value( const float &vx, const float &vy, const float &vz) { 
+    set_value( const float vx, const float vy, const float vz) { 
         x = vx; y = vy; z = vz; 
         return *this; 
     }
@@ -133,7 +127,7 @@ public:
 
     /* cross product */
     __host__ __device__ __inline__ vec3f
-    cross (const vec3f& rhs) const {
+    cross (const vec3f rhs) const {
         return vec3f ( y * rhs.z - z * rhs.y,
                           z * rhs.x - x * rhs.z,
                           x * rhs.y - y * rhs.x);
@@ -141,7 +135,7 @@ public:
     
     /* dot product */
     __host__ __device__ __inline__ float
-    dot (const vec3f& rhs) const {
+    dot (const vec3f rhs) const {
         return x * rhs.x + y * rhs.y + z * rhs.z; 
     }
 

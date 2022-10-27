@@ -36,7 +36,7 @@ __device__ std::uint32_t
 query_device(AABB* target, Node* internalNodes, 
     std::uint32_t* outBuffer, const std::uint32_t max_buffer_size = 0xFFFFFFFF) {
 
-    Node* stack[64];
+    Node* stack[256];
     Node** stackPtr = stack;
     // root node is always zero
     *stackPtr++ = &internalNodes[0];
@@ -50,7 +50,7 @@ query_device(AABB* target, Node* internalNodes,
         // check left child tree
         if (overlaps(*target, leftNode->bbox)) {
             if (leftNode->isLeaf) {
-                if (found_num < max_buffer_size) {
+                if (found_num < max_buffer_size - 1) {
                     *outBuffer++ = (leftNode)->objectID;
                 }
                 ++found_num;
@@ -63,7 +63,7 @@ query_device(AABB* target, Node* internalNodes,
         // check right child tree
         if (overlaps(*target, rightNode->bbox)) {
             if (rightNode->isLeaf) {
-                if (found_num < max_buffer_size) {
+                if (found_num < max_buffer_size - 1) {
                     *outBuffer++ = (rightNode)->objectID;
                 }
                 ++found_num;
@@ -73,6 +73,7 @@ query_device(AABB* target, Node* internalNodes,
             }
         }
     } while ( stack < stackPtr);
+
     return found_num;
 }
 
