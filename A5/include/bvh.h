@@ -164,9 +164,13 @@ private:
     AABB* aabbs_d_;
     
     std::uint32_t* adjObjInfo_d_; //!< store each object's neighbour's ids
-    std::uint32_t* adjObjNum_d_; //!< store each object's neighbour number
 
-    thrust::device_vector<std::uint32_t> scan_res_vec;
+    thrust::device_vector<std::uint32_t> scan_res_d_;
+    thrust::host_vector<std::uint32_t> scan_res_h_;
+    
+    /* store each object's neighbour number */
+    thrust::device_vector<std::uint32_t> adjObjNumList_d_;
+    thrust::host_vector<std::uint32_t> adjObjNumList_h_;
 };
 
 

@@ -272,16 +272,16 @@ BVH::construct() {
     std::cout << div_signs << "  Stage 4: Construct LBVH hierarchy.  " << div_signs << std::endl;
     /* construct leaf nodes */
     thrust::device_ptr<Node> leafNodes_d_ptr(leafNodes);
-    thrust::for_each(thrust::device,
-        thrust::make_counting_iterator<std::uint32_t>(0),
-        thrust::make_counting_iterator<std::uint32_t>(num_objects),
-        [objectIDs_d_ptr, leafNodes_d_ptr] __device__ (const std::uint32_t idx) {
+    thrust::transform(objectIDs_d_ptr, 
+        objectIDs_d_ptr + num_objects,
+        leafNodes_d_ptr, 
+        [] __device__ (const std::uint32_t idx){
             Node leaf;
-            leafNodes_d_ptr->isLeaf = true;
-            leafNodes_d_ptr->objectID = objectIDs_d_ptr[idx];
-            
+            leaf.isLeaf = true;
+            leaf.objectID = idx;
             return leaf;
         });
+
     printf("--> leaf nodes have been constructed.\n");
     /* construct internal nodes */
     construtInternalNodes_kernel<<<blocksPerGrid, threadsPerBlock>>>(mortonCodes, objectIDs, num_objects, internalNodes, leafNodes, aabbs_d_);
@@ -314,8 +314,8 @@ BVH::getNbInfo() {
     std::cout << div_signs << "  Stage 5: Get Triangles' adjecent neighbour." << div_signs << std::endl;
 
     /* before we use thrust vector, we need to allocate memory for it first. */
-    /* NOTE: This is a dynamic memory allocation process !!!  */
-    HANDLE_ERROR(cudaMalloc((void**)(&adjObjNum_d_), num_objects * sizeof(std::uint32_t)));
+    adjObjNumList_d_.resize(num_objects);
+    std::uint32_t* adjObjNumList_d_ptr = thrust::raw_pointer_cast(adjObjNumList_d_.data());
 
     /* temparory buffer to store the adjacent neighbour */
     int max_buffer_size = 20;
@@ -326,25 +326,32 @@ BVH::getNbInfo() {
     int threadsPerBlock = 256;
     int blocksPerGrid = (num_objects + threadsPerBlock - 1) / threadsPerBlock;
     NbInfoScan_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-            (num_objects, max_buffer_size, aabbs_d_, internalNodes, adjObjectsOut, objectIDs, adjObjNum_d_);
+            (num_objects, max_buffer_size, aabbs_d_, internalNodes, adjObjectsOut, objectIDs, adjObjNumList_d_ptr);
     HANDLE_ERROR(cudaDeviceSynchronize());
 
     /* get adjacent neighbour sum */
-    thrust::device_ptr<std::uint32_t> adjObjNumSum_ptr(adjObjNum_d_);
-    num_adjObjects = thrust::reduce(adjObjNumSum_ptr, adjObjNumSum_ptr + num_objects, 0, thrust::plus<std::uint32_t>());
+    num_adjObjects = thrust::reduce(adjObjNumList_d_.begin(), adjObjNumList_d_.end(), 0, thrust::plus<std::uint32_t>());
     printf("--> Triangles: %u, AdjTriangles: %u\n", num_objects, num_adjObjects);
 
-    /* exclusive prefix sum */
+    /* adjacent neighbour info container */
     HANDLE_ERROR(cudaMalloc((void**)(&adjObjInfo_d_), num_adjObjects * sizeof(std::uint32_t)));
-    thrust::device_ptr<std::uint32_t> exclusive_scan_source_ptr(adjObjNumSum_ptr);
-    scan_res_vec.resize(num_objects);
-    thrust::exclusive_scan(thrust::device, exclusive_scan_source_ptr, exclusive_scan_source_ptr + num_objects, scan_res_vec.begin());
-    std::uint32_t* scan_res_raw_ptr = scan_res_vec.data().get();
+
+    /* exclusive prefix sum */
+    scan_res_d_.resize(num_objects);
+    thrust::exclusive_scan(thrust::device, adjObjNumList_d_.begin(), adjObjNumList_d_.end(), scan_res_d_.begin());
+
+    /* copy data from deivce to host */
+    scan_res_h_ = scan_res_d_;
+    adjObjNumList_h_ = adjObjNumList_d_;
+    std::uint32_t* scan_res_raw_ptr = thrust::raw_pointer_cast(scan_res_h_.data());
+    std::uint32_t* adjObjNumList_raw_ptr = thrust::raw_pointer_cast(adjObjNumList_h_.data());
+    /* wait for data preparation */
+    HANDLE_ERROR(cudaDeviceSynchronize());
 
     for (int i = 0; i < num_objects; i++) {
         HANDLE_ERROR(cudaMemcpy(adjObjInfo_d_ + scan_res_raw_ptr[i] /* dst offset */, 
                                 adjObjectsOut + max_buffer_size * i /* src offset */, 
-                                adjObjNum_d_[i] * sizeof(std::uint32_t) /* data size */, 
+                                adjObjNumList_raw_ptr[i] * sizeof(std::uint32_t) /* data size */, 
                                 cudaMemcpyDeviceToDevice)
                                 );
     }

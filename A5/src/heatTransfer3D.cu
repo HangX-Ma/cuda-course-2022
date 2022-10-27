@@ -34,12 +34,13 @@ propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjO
     if (idx > num_objects - 1) {
         return;
     }
+    std::uint32_t adjObjNum = adjObjNums[idx];
 
     curr[idx] = prev[idx];
-    for (int i = 0; i < adjObjNums[idx]; i++) {
-        curr[idx] += prev[prefix_sum[idx] + i];
+    for (int i = 0; i < adjObjNum; i++) {
+        curr[idx] += prev[adjObjects[prefix_sum[idx]/*offset*/ + i]];
     }
-    curr[idx] /= (float)(adjObjNums[idx] + 1);
+    curr[idx] /= (float)(adjObjNum + 1);
 
     /* keep source stable */
     for (int j = 0; j < HEAT_SOURCE_SIZE; j++) {
@@ -59,18 +60,19 @@ lbvh::BVH::propagate() {
     }
 
     /* get prefix sum pointer */
-    std::uint32_t* scan_res_ptr = scan_res_vec.data().get();
+    std::uint32_t* scan_res_ptr = thrust::raw_pointer_cast(scan_res_d_.data());
+    std::uint32_t* adjObjNumList_raw_ptr = thrust::raw_pointer_cast(adjObjNumList_d_.data());
 
     /* kernel property */
     int threadsPerBlock = 256;
     int blocksPerGrid = (gNumObjects + threadsPerBlock - 1) / threadsPerBlock;
     if (dstOut == 1) {
         propagate_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-                (gNumObjects, dev_heatSource, adjObjInfo_d_, adjObjNum_d_, scan_res_ptr, gIntensityIn_d_, gIntensityOut_d_);
+                (gNumObjects, dev_heatSource, adjObjInfo_d_, scan_res_ptr, adjObjNumList_raw_ptr, gIntensityIn_d_, gIntensityOut_d_);
     }
     else if (dstOut == 0) {
         propagate_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-                (gNumObjects, dev_heatSource, adjObjInfo_d_, adjObjNum_d_, scan_res_ptr, gIntensityOut_d_, gIntensityIn_d_);
+                (gNumObjects, dev_heatSource, adjObjInfo_d_, scan_res_ptr, adjObjNumList_raw_ptr, gIntensityOut_d_, gIntensityIn_d_);
     }
     HANDLE_ERROR(cudaDeviceSynchronize());
 
