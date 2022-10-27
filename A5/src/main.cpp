@@ -13,8 +13,11 @@
 std::uint32_t gNumObjects = 0xFFFFFFFF;
 lbvh::triangle_t* gTriangles = nullptr;
 lbvh::vec3f* gVertices = nullptr;
+lbvh::vec3f* gNormals = nullptr;
+std::uint32_t* gSortedObjIDs = nullptr;
 
 extern void quit_heatTransfer();
+
 
 struct Arg: public option::Arg
 {
@@ -86,18 +89,23 @@ int main(int argc, char* argv[])
         gNumObjects = bvhInstancePtr->getOjbectNum();
         gTriangles = bvhInstancePtr->getTriangleList();
         gVertices = bvhInstancePtr->getVerticeList();
+        gNormals = bvhInstancePtr->getNormalList();
+        gSortedObjIDs = bvhInstancePtr->getSortedObjectIDs();
         HANDLE_UINT32_NULL(gNumObjects);
         HANDLE_NULL(gTriangles);
         HANDLE_NULL(gVertices);
+        HANDLE_NULL(gNormals);
+        HANDLE_NULL(gSortedObjIDs);
 
         glutDisplayFunc(display);
         glutReshapeFunc(reshape);
         glutSpecialFunc(arrow_keys);
+        glutIdleFunc(idle_fem);
         glutKeyboardFunc(keyboard);
         glutMainLoop();
-
-        quit_heatTransfer();
         
+        quit_heatTransfer();
+
         return 0;
     }
     

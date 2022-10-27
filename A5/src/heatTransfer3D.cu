@@ -5,13 +5,13 @@
 #include <thrust/device_free.h>
 
 #define HEAT_SOURCE_SIZE (3)
-
+#define HEAT_TRANSFER_SPEED (0.04f)
 
 volatile int dstOut = -1;
 float isource = 1.0f;
 __device__ float dev_isource;
 
-int heatSource[HEAT_SOURCE_SIZE] = {10, 100, 200};
+int heatSource[HEAT_SOURCE_SIZE] = {10, 20, 1000};
 int* dev_heatSource;
 
 
@@ -23,10 +23,36 @@ float* gIntensityOut_d_;
 /* global value */
 extern std::uint32_t gNumObjects;
 
+
 lbvh::BVH* bvhInstance = lbvh::BVH::getInstance();
 /* print info */
 std::string div_signs(10, '-');
 
+#if QUICK_TRANS
+__global__ void 
+propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjObjects, 
+        std::uint32_t* prefix_sum, std::uint32_t* adjObjNums, float *prev, float* curr) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx > num_objects - 1) {
+        return;
+    }
+    std::uint32_t adjObjNum = adjObjNums[idx];
+    std::uint32_t sum = 0;
+    
+    for (int i = 0; i < adjObjNum; i++) {
+        sum += prev[adjObjects[prefix_sum[idx]/*offset*/ + i]];
+    }
+    curr[idx] = prev[idx] + HEAT_TRANSFER_SPEED * (sum - adjObjNum * prev[idx]);
+
+    /* keep source stable */
+    for (int j = 0; j < HEAT_SOURCE_SIZE; j++) {
+        if (idx == heatSource[j]) {
+            curr[idx] = dev_isource;
+        }
+    }
+
+}
+#else
 __global__ void 
 propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjObjects, 
         std::uint32_t* prefix_sum, std::uint32_t* adjObjNums, float *prev, float* curr) {
@@ -51,6 +77,7 @@ propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjO
 
 }
 
+#endif
 
 __host__ void
 lbvh::BVH::propagate() {
@@ -94,8 +121,6 @@ void startHeatTransfer() {
         printf("Please complete prerequisites before propagating.\n");
         return;
     }
-    std::cout << div_signs << "Start Heat Transfer" << div_signs << std::endl;
-
     if (dstOut == -1) {
         dstOut = 1;
 
@@ -126,7 +151,7 @@ void startHeatTransfer() {
     else {
         TIMING_BEGIN
         bvhInstance->propagate();
-        TIMING_END("propagating ...")
+        TIMING_END("propagating cost: ")
     }
 }
 

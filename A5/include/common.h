@@ -50,6 +50,6 @@ static void HandleError( cudaError_t err,
         {auto time_end = std::chrono::system_clock::now();\
         auto  time_duration = \
         std::chrono::duration_cast<std::chrono::microseconds>(time_end - time_start);\
-        printf("%s: %2.5f milliseconds\n", (message), static_cast<double>(time_duration.count()/1000));}}
+        printf("%s: %2.5f milliseconds\n", (message), static_cast<double>(time_duration.count()/1000.0));}}
 
 #endif  // __BOOK_H__

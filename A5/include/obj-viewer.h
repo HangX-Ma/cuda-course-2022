@@ -47,5 +47,6 @@ void reshape(int w, int h);
 void arrow_keys(int key, int x, int y);
 void keyboard(unsigned char key, int x, int y);
 void display();
+void idle_fem();
 
 #endif

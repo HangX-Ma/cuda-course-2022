@@ -100,6 +100,15 @@ public:
         return nullptr;
     }
 
+    __host__ std::uint32_t*
+    getSortedObjectIDs() {
+        if (bvh_status != BVH_STATUS::STATE_INITIAL &&
+            bvh_status != BVH_STATUS::STATE_CONSTRUCT) {
+            return sortedObjectIDs_h_;
+        }
+        return nullptr;
+    }
+
     __host__ std::uint32_t
     getOjbectNum() {
         if (bvh_status != BVH_STATUS::STATE_INITIAL) {
@@ -147,6 +156,8 @@ private:
 
     std::uint32_t* mortonCodes;
     std::uint32_t* objectIDs;
+    std::uint32_t* sortedObjectIDs_h_;
+
 
     std::uint32_t num_objects;
     std::uint32_t num_adjObjects;

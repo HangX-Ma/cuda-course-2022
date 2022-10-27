@@ -212,6 +212,7 @@ BVH::construct() {
 
     /* ---------------- STAGE 1: load objects ---------------- */
     /* allocte specific memory size */
+    sortedObjectIDs_h_ = (std::uint32_t*)malloc( num_objects * sizeof(std::uint32_t));
     HANDLE_ERROR(cudaMalloc((void**)&triangle_indices_d_, num_objects * sizeof(triangle_t)));
     HANDLE_ERROR(cudaMalloc((void**)&vertices_d_, vertices_h_.size() * sizeof(vec3f)));
     HANDLE_ERROR(cudaMalloc((void**)&normals_d_, normals_h_.size() * sizeof(vec3f)));
@@ -268,6 +269,8 @@ BVH::construct() {
     thrust::device_ptr<std::uint32_t> objectIDs_d_ptr(objectIDs);
     thrust::sort_by_key(mortonCodes_d_ptr, mortonCodes_d_ptr + num_objects, objectIDs_d_ptr);
     printf("--> morton codes have been sorted.\n");
+    /* copy data from device to host */
+    HANDLE_ERROR(cudaMemcpy(sortedObjectIDs_h_, objectIDs, num_objects * sizeof(std::uint32_t), cudaMemcpyDeviceToHost));
 
     std::cout << div_signs << "  Stage 4: Construct LBVH hierarchy.  " << div_signs << std::endl;
     /* construct leaf nodes */
@@ -298,6 +301,7 @@ BVH::construct() {
 
 
 BVH::~BVH() {
+    free(sortedObjectIDs_h_);
     HANDLE_ERROR(cudaFree(triangle_indices_d_));
     HANDLE_ERROR(cudaFree(vertices_d_));
     HANDLE_ERROR(cudaFree(normals_d_));
