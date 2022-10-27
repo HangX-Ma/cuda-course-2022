@@ -28,8 +28,8 @@ lbvh::BVH* bvhInstance = lbvh::BVH::getInstance();
 std::string div_signs(10, '-');
 
 __global__ void 
-propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t** adjObjects, 
-        std::uint32_t* adjObjNums, float *prev, float* curr) {
+propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjObjects, 
+        std::uint32_t* prefix_sum, std::uint32_t* adjObjNums, float *prev, float* curr) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx > num_objects - 1) {
         return;
@@ -37,7 +37,7 @@ propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t** adj
 
     curr[idx] = prev[idx];
     for (int i = 0; i < adjObjNums[idx]; i++) {
-        curr[idx] += prev[adjObjects[idx][i]];
+        curr[idx] += prev[prefix_sum[idx] + i];
     }
     curr[idx] /= (float)(adjObjNums[idx] + 1);
 
@@ -58,16 +58,19 @@ lbvh::BVH::propagate() {
         return;
     }
 
+    /* get prefix sum pointer */
+    std::uint32_t* scan_res_ptr = scan_res_vec.data().get();
+
     /* kernel property */
     int threadsPerBlock = 256;
     int blocksPerGrid = (gNumObjects + threadsPerBlock - 1) / threadsPerBlock;
     if (dstOut == 1) {
         propagate_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-                (gNumObjects, dev_heatSource, adjObjInfo_d_, adjObjNum_d_, gIntensityIn_d_, gIntensityOut_d_);
+                (gNumObjects, dev_heatSource, adjObjInfo_d_, adjObjNum_d_, scan_res_ptr, gIntensityIn_d_, gIntensityOut_d_);
     }
     else if (dstOut == 0) {
         propagate_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-                (gNumObjects, dev_heatSource, adjObjInfo_d_, adjObjNum_d_, gIntensityOut_d_, gIntensityIn_d_);
+                (gNumObjects, dev_heatSource, adjObjInfo_d_, adjObjNum_d_, scan_res_ptr, gIntensityOut_d_, gIntensityIn_d_);
     }
     HANDLE_ERROR(cudaDeviceSynchronize());
 

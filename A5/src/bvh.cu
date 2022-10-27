@@ -13,6 +13,7 @@
 #include <thrust/transform_reduce.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/scan.h>
 
 #include <sys/stat.h> // check file status
 
@@ -55,8 +56,8 @@ __global__ void
 createAABBHierarchy_Kernel(int num_objects, Node* leafNodes, Node* internalNodes);
 
 __global__ void 
-NbInfoScan_Kernel(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, 
-        std::uint32_t** adjObjInfo, std::uint32_t* adjObjNums);
+NbInfoScan_Kernel(std::uint32_t num_object, int max_buffer_size , AABB* aabbs, Node* internalNodes, 
+    std::uint32_t* adjObjectsOut, std::uint32_t* sortedObjectIDs, std::uint32_t* adjObjNums);
 
 struct minUnaryFunc{
     __host__ __device__
@@ -315,20 +316,42 @@ BVH::getNbInfo() {
     /* before we use thrust vector, we need to allocate memory for it first. */
     /* NOTE: This is a dynamic memory allocation process !!!  */
     HANDLE_ERROR(cudaMalloc((void**)(&adjObjNum_d_), num_objects * sizeof(std::uint32_t)));
-    HANDLE_ERROR(cudaMalloc((void**)(&adjObjInfo_d_), num_objects * sizeof(std::uint32_t*)));
+
+    /* temparory buffer to store the adjacent neighbour */
+    int max_buffer_size = 20;
+    std::uint32_t* adjObjectsOut;
+    HANDLE_ERROR(cudaMalloc((void**)(&adjObjectsOut), num_objects * max_buffer_size * sizeof(std::uint32_t)));
 
     /* kernel property */
     int threadsPerBlock = 256;
     int blocksPerGrid = (num_objects + threadsPerBlock - 1) / threadsPerBlock;
-
     NbInfoScan_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-            (num_objects, aabbs_d_, internalNodes, adjObjInfo_d_, adjObjNum_d_);
+            (num_objects, max_buffer_size, aabbs_d_, internalNodes, adjObjectsOut, objectIDs, adjObjNum_d_);
     HANDLE_ERROR(cudaDeviceSynchronize());
 
+    /* get adjacent neighbour sum */
     thrust::device_ptr<std::uint32_t> adjObjNumSum_ptr(adjObjNum_d_);
     num_adjObjects = thrust::reduce(adjObjNumSum_ptr, adjObjNumSum_ptr + num_objects, 0, thrust::plus<std::uint32_t>());
-
     printf("--> Triangles: %u, AdjTriangles: %u\n", num_objects, num_adjObjects);
+
+    /* exclusive prefix sum */
+    HANDLE_ERROR(cudaMalloc((void**)(&adjObjInfo_d_), num_adjObjects * sizeof(std::uint32_t)));
+    thrust::device_ptr<std::uint32_t> exclusive_scan_source_ptr(adjObjNumSum_ptr);
+    scan_res_vec.resize(num_objects);
+    thrust::exclusive_scan(thrust::device, exclusive_scan_source_ptr, exclusive_scan_source_ptr + num_objects, scan_res_vec.begin());
+    std::uint32_t* scan_res_raw_ptr = scan_res_vec.data().get();
+
+    for (int i = 0; i < num_objects; i++) {
+        HANDLE_ERROR(cudaMemcpy(adjObjInfo_d_ + scan_res_raw_ptr[i] /* dst offset */, 
+                                adjObjectsOut + max_buffer_size * i /* src offset */, 
+                                adjObjNum_d_[i] * sizeof(std::uint32_t) /* data size */, 
+                                cudaMemcpyDeviceToDevice)
+                                );
+    }
+
+    /* release temporary buffer memory */
+    HANDLE_ERROR(cudaFree(adjObjectsOut));
+
     bvh_status = BVH_STATUS::STATE_PROPAGATE;
 }
 
@@ -528,7 +551,7 @@ createAABBHierarchy_Kernel(int num_objects, Node* leafNodes, Node* internalNodes
     Node* nodeIdxParent = (leafNodes + idx)->parent;
 
     while (nodeIdxParent != nullptr) {
-        const int old = atomicCAS(&nodeIdxParent->updateFlag, 0, 1);
+        const int old = atomicCAS(&(nodeIdxParent->updateFlag), 0, 1);
         if (old == 0) {
             /* first thread entered here. 
                 Wait the other thread from the other child node. */ 
@@ -559,32 +582,19 @@ createAABBHierarchy_Kernel(int num_objects, Node* leafNodes, Node* internalNodes
 
 
 __global__ void 
-NbInfoScan_Kernel(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, std::uint32_t** adjObjInfo, std::uint32_t* adjObjNums) {
+NbInfoScan_Kernel(std::uint32_t num_object, int max_buffer_size , AABB* aabbs, Node* internalNodes, 
+    std::uint32_t* adjObjectsOut, std::uint32_t* sortedObjectIDs, std::uint32_t* adjObjNums) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx > num_object - 1) {
         return;
     }
 
-    /* temporary device vector to store the neighbour's id  */
-    int max_buffer_size = 20;
-    std::uint32_t* adjObjects; 
-    cudaMalloc((void**)&adjObjects, max_buffer_size * sizeof(std::uint32_t));
-
     /* query for each object's neighbour */
-    std::uint32_t adjObjNum = lbvh::query_device(aabbs + idx, internalNodes, adjObjects, max_buffer_size);
+    std::uint32_t adjObjNum = lbvh::query_device(aabbs + sortedObjectIDs[idx], 
+                                                internalNodes, 
+                                                adjObjectsOut + idx * max_buffer_size, 
+                                                max_buffer_size);
     adjObjNums[idx] = adjObjNum;
-
-    /* allocate memory for current adjObjInfo group */
-    /* NOTE: This is a dynamic memory allocation process !!!  */
-    cudaMalloc((void**)(&adjObjInfo[idx]), adjObjNum * sizeof(std::uint32_t));
-
-    /* copy data */
-    for (int i = 0; i < adjObjNum; i++ ) {
-        adjObjInfo[idx][i] = adjObjects[i];
-    }
-
-    /* free the memory */
-    cudaFree(adjObjects);
 }
 
 

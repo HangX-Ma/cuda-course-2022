@@ -163,8 +163,10 @@ private:
     vec3f* normals_d_;
     AABB* aabbs_d_;
     
-    std::uint32_t** adjObjInfo_d_; //!< store each object's neighbour's ids
+    std::uint32_t* adjObjInfo_d_; //!< store each object's neighbour's ids
     std::uint32_t* adjObjNum_d_; //!< store each object's neighbour number
+
+    thrust::device_vector<std::uint32_t> scan_res_vec;
 };
 
 
