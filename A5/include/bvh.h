@@ -104,7 +104,7 @@ public:
     getSortedObjectIDs() {
         if (bvh_status != BVH_STATUS::STATE_INITIAL &&
             bvh_status != BVH_STATUS::STATE_CONSTRUCT) {
-            return sortedObjectIDs_h_;
+            return sortedObjectIDs_h_.data();
         }
         return nullptr;
     }
@@ -128,8 +128,8 @@ public:
     __host__ bvh_device 
     getDevPtrs() {
         if (bvh_status != BVH_STATUS::STATE_INITIAL) {
-            return bvh_device{ 2 * num_objects - 1, num_objects, 
-                            internalNodes, leafNodes, aabbs_d_, objectIDs};
+            return bvh_device{ 2 * num_objects - 1, num_objects, internalNodes, leafNodes, 
+                    aabbs_d_, thrust::raw_pointer_cast(sortedObjectIDs_d_.data())};
         }
         return bvh_device{0xFFFFFFFF, 0xFFFFFFFF, nullptr, nullptr, nullptr, nullptr};
     }
@@ -149,15 +149,14 @@ public:
     propagate();
 
 private:
-    BVH() : mortonCodes(nullptr), objectIDs(nullptr), num_objects(0), num_adjObjects(0) {};
+    BVH() : mortonCodes(nullptr), num_objects(0), num_adjObjects(0) {};
     ~BVH();
 
     BVH_STATUS bvh_status = BVH_STATUS::STATE_INITIAL;
 
     std::uint32_t* mortonCodes;
-    std::uint32_t* objectIDs;
-    std::uint32_t* sortedObjectIDs_h_;
-
+    thrust::device_vector<std::uint32_t> sortedObjectIDs_d_;
+    thrust::host_vector<std::uint32_t> sortedObjectIDs_h_;
 
     std::uint32_t num_objects;
     std::uint32_t num_adjObjects;
@@ -174,8 +173,10 @@ private:
     vec3f* normals_d_;
     AABB* aabbs_d_;
     
-    std::uint32_t* adjObjInfo_d_; //!< store each object's neighbour's ids
+    /* store each object's neighbour's ids */
+    std::uint32_t* adjObjInfo_d_;
 
+    /* exclusive scan (prefix sum) result container */
     thrust::device_vector<std::uint32_t> scan_res_d_;
     thrust::host_vector<std::uint32_t> scan_res_h_;
     

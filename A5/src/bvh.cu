@@ -17,9 +17,11 @@
 
 #include <sys/stat.h> // check file status
 
-
-
 // #define DEBUG_INFO 1
+
+
+static std::string div_signs(10, '-');
+
 
 namespace lbvh {
 
@@ -104,7 +106,6 @@ BVH::loadObj(std::string& inputfile) {
     }
 
     /* stage info */
-    std::string div_signs(10, '-');
     std::cout << div_signs << "  Stage 1: Loading objects  " << div_signs << std::endl;
     printf("Loading objcts from <%s> ...\n", inputfile.c_str());
 
@@ -189,7 +190,6 @@ BVH::construct() {
         exit(EXIT_FAILURE);
     }
 
-    std::string div_signs(10, '-');
     std::cout << div_signs << "  Start LBVH Construction  " << div_signs << std::endl;
     printf("[CUDA device information]\n");
     cudaDevInfo();
@@ -212,7 +212,6 @@ BVH::construct() {
 
     /* ---------------- STAGE 1: load objects ---------------- */
     /* allocte specific memory size */
-    sortedObjectIDs_h_ = (std::uint32_t*)malloc( num_objects * sizeof(std::uint32_t));
     HANDLE_ERROR(cudaMalloc((void**)&triangle_indices_d_, num_objects * sizeof(triangle_t)));
     HANDLE_ERROR(cudaMalloc((void**)&vertices_d_, vertices_h_.size() * sizeof(vec3f)));
     HANDLE_ERROR(cudaMalloc((void**)&normals_d_, normals_h_.size() * sizeof(vec3f)));
@@ -256,21 +255,24 @@ BVH::construct() {
 
     /* ---------------- STAGE 2: build BVH Tree ---------------- */
     HANDLE_ERROR(cudaMalloc(&mortonCodes, num_objects * sizeof(std::uint32_t)));
-    HANDLE_ERROR(cudaMalloc(&objectIDs, num_objects * sizeof(std::uint32_t)));
     HANDLE_ERROR(cudaMalloc(&leafNodes, num_objects * sizeof(Node)));
     HANDLE_ERROR(cudaMalloc(&internalNodes, (num_objects - 1) * sizeof(Node)));
+    sortedObjectIDs_d_.resize(num_objects);
+    std::uint32_t* sortedObjectIDs_d_rawPtr = thrust::raw_pointer_cast(sortedObjectIDs_d_.data());
 
     /* compute morton code */
     std::cout << div_signs << "  Stage 3: Calculate morton codes.  " << div_signs << std::endl;
-    computeMortonCode_kernel<<<blocksPerGrid, threadsPerBlock>>>(num_objects, objectIDs, aabb_bound, aabbs_d_, mortonCodes);
+    computeMortonCode_kernel<<<blocksPerGrid, threadsPerBlock>>>
+        (num_objects, sortedObjectIDs_d_rawPtr, aabb_bound, aabbs_d_, mortonCodes);
 
     /* sort morton codes */
     thrust::device_ptr<std::uint32_t> mortonCodes_d_ptr(mortonCodes);
-    thrust::device_ptr<std::uint32_t> objectIDs_d_ptr(objectIDs);
+    thrust::device_ptr<std::uint32_t> objectIDs_d_ptr = sortedObjectIDs_d_.data();
     thrust::sort_by_key(mortonCodes_d_ptr, mortonCodes_d_ptr + num_objects, objectIDs_d_ptr);
     printf("--> morton codes have been sorted.\n");
+
     /* copy data from device to host */
-    HANDLE_ERROR(cudaMemcpy(sortedObjectIDs_h_, objectIDs, num_objects * sizeof(std::uint32_t), cudaMemcpyDeviceToHost));
+    sortedObjectIDs_h_ = sortedObjectIDs_d_;
 
     std::cout << div_signs << "  Stage 4: Construct LBVH hierarchy.  " << div_signs << std::endl;
     /* construct leaf nodes */
@@ -287,7 +289,8 @@ BVH::construct() {
 
     printf("--> leaf nodes have been constructed.\n");
     /* construct internal nodes */
-    construtInternalNodes_kernel<<<blocksPerGrid, threadsPerBlock>>>(mortonCodes, objectIDs, num_objects, internalNodes, leafNodes, aabbs_d_);
+    construtInternalNodes_kernel<<<blocksPerGrid, threadsPerBlock>>>
+            (mortonCodes, sortedObjectIDs_d_rawPtr, num_objects, internalNodes, leafNodes, aabbs_d_);
     printf("--> internal nodes have been constructed.\n");
 
     /* create AABB for each node by bottom-up strategy */
@@ -301,7 +304,6 @@ BVH::construct() {
 
 
 BVH::~BVH() {
-    free(sortedObjectIDs_h_);
     HANDLE_ERROR(cudaFree(triangle_indices_d_));
     HANDLE_ERROR(cudaFree(vertices_d_));
     HANDLE_ERROR(cudaFree(normals_d_));
@@ -314,26 +316,26 @@ BVH::getNbInfo() {
         printf("Please call this method at STATE_GET_NEIGHBOUR.\n");
         return;
     }
-    std::string div_signs(10, '-');
-    std::cout << div_signs << "  Stage 5: Get Triangles' adjecent neighbour." << div_signs << std::endl;
+    std::cout << div_signs << " Stage 5: Get Triangles' adjecent neighbour." << div_signs << std::endl;
 
     /* before we use thrust vector, we need to allocate memory for it first. */
     adjObjNumList_d_.resize(num_objects);
-    std::uint32_t* adjObjNumList_d_ptr = thrust::raw_pointer_cast(adjObjNumList_d_.data());
+    std::uint32_t* adjObjNumList_d_rawPtr = thrust::raw_pointer_cast(adjObjNumList_d_.data());
 
-    /* temparory buffer to store the adjacent neighbour */
+    /* temparory buffer used to store the adjacent neighbour */
     int max_buffer_size = 20;
-    std::uint32_t* adjObjectsOut;
-    HANDLE_ERROR(cudaMalloc((void**)(&adjObjectsOut), num_objects * max_buffer_size * sizeof(std::uint32_t)));
+    std::uint32_t* adjObjectIDsListOut;
+    HANDLE_ERROR(cudaMalloc((void**)(&adjObjectIDsListOut), num_objects * max_buffer_size * sizeof(std::uint32_t)));
 
     /* kernel property */
     int threadsPerBlock = 256;
     int blocksPerGrid = (num_objects + threadsPerBlock - 1) / threadsPerBlock;
+    std::uint32_t* sortedObjectIDs_d_raw_ptr = thrust::raw_pointer_cast(sortedObjectIDs_d_.data());
     NbInfoScan_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-            (num_objects, max_buffer_size, aabbs_d_, internalNodes, adjObjectsOut, objectIDs, adjObjNumList_d_ptr);
+            (num_objects, max_buffer_size, aabbs_d_, internalNodes, adjObjectIDsListOut, sortedObjectIDs_d_raw_ptr, adjObjNumList_d_rawPtr);
     HANDLE_ERROR(cudaDeviceSynchronize());
 
-    /* get adjacent neighbour sum */
+    /* get adjacent neighbour sum, 'eclusive carry' */
     num_adjObjects = thrust::reduce(adjObjNumList_d_.begin(), adjObjNumList_d_.end(), 0, thrust::plus<std::uint32_t>());
     printf("--> Triangles: %u, AdjTriangles: %u\n", num_objects, num_adjObjects);
 
@@ -347,22 +349,21 @@ BVH::getNbInfo() {
     /* copy data from deivce to host */
     scan_res_h_ = scan_res_d_;
     adjObjNumList_h_ = adjObjNumList_d_;
-    std::uint32_t* scan_res_raw_ptr = thrust::raw_pointer_cast(scan_res_h_.data());
-    std::uint32_t* adjObjNumList_raw_ptr = thrust::raw_pointer_cast(adjObjNumList_h_.data());
+    std::uint32_t* scan_res_h_rawPtr = thrust::raw_pointer_cast(scan_res_h_.data());
+    std::uint32_t* adjObjNumList_h_rawPtr = thrust::raw_pointer_cast(adjObjNumList_h_.data());
     /* wait for data preparation */
     HANDLE_ERROR(cudaDeviceSynchronize());
 
     for (int i = 0; i < num_objects; i++) {
-        HANDLE_ERROR(cudaMemcpy(adjObjInfo_d_ + scan_res_raw_ptr[i] /* dst offset */, 
-                                adjObjectsOut + max_buffer_size * i /* src offset */, 
-                                adjObjNumList_raw_ptr[i] * sizeof(std::uint32_t) /* data size */, 
+        HANDLE_ERROR(cudaMemcpy(adjObjInfo_d_ + scan_res_h_rawPtr[i] /* dst offset */, 
+                                adjObjectIDsListOut + max_buffer_size * i /* src offset */, 
+                                adjObjNumList_h_rawPtr[i] * sizeof(std::uint32_t) /* data size */, 
                                 cudaMemcpyDeviceToDevice)
                                 );
     }
 
     /* release temporary buffer memory */
-    HANDLE_ERROR(cudaFree(adjObjectsOut));
-
+    HANDLE_ERROR(cudaFree(adjObjectIDsListOut));
     bvh_status = BVH_STATUS::STATE_PROPAGATE;
 }
 

@@ -54,7 +54,7 @@ propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjO
 }
 #else
 __global__ void 
-propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjObjects, 
+propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjObjectIDs, 
         std::uint32_t* prefix_sum, std::uint32_t* adjObjNums, float *prev, float* curr) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx > num_objects - 1) {
@@ -64,7 +64,7 @@ propagate_Kernel(std::uint32_t num_objects, int* heatSource, std::uint32_t* adjO
 
     curr[idx] = prev[idx];
     for (int i = 0; i < adjObjNum; i++) {
-        curr[idx] += prev[adjObjects[prefix_sum[idx]/*offset*/ + i]];
+        curr[idx] += prev[adjObjectIDs[prefix_sum[idx]/*offset*/ + i]];
     }
     curr[idx] /= (float)(adjObjNum + 1);
 
@@ -136,11 +136,14 @@ void startHeatTransfer() {
 
         /* initialize the first iteration temperature */
         thrust::device_ptr<float> gIntensityIn_d_ptr(gIntensityIn_d_);
+        thrust::device_ptr<float> gIntensityOut_d_ptr(gIntensityOut_d_);
         thrust::for_each(thrust::device, 
             thrust::make_counting_iterator<std::uint32_t>(0),
             thrust::make_counting_iterator<std::uint32_t>(gNumObjects),
-            [gIntensityIn_d_ptr] __device__ (std::uint32_t idx){
+            [gIntensityIn_d_ptr, gIntensityOut_d_ptr] __device__ (std::uint32_t idx){
                 gIntensityIn_d_ptr[idx] = 0.0f;
+                gIntensityOut_d_ptr[idx] = 0.0f;
+
                 return;
             });
 
@@ -151,7 +154,7 @@ void startHeatTransfer() {
     else {
         TIMING_BEGIN
         bvhInstance->propagate();
-        TIMING_END("propagating cost: ")
+        TIMING_END("time cost: ")
     }
 }
 

@@ -101,15 +101,12 @@ void draw_obj() {
             glBegin(GL_TRIANGLES);
             // glColor3f(OBJ_COLOR.red, OBJ_COLOR.green, OBJ_COLOR.blue);
             // glNormal3dv(normal);
-            // glVertex3d(vecA.x, vecA.y, vecA.z);
-            // glVertex3d(vecB.x, vecB.y, vecB.z);
-            // glVertex3d(vecC.x, vecC.y, vecC.z);
-            glNormal3dv((const GLdouble*)nrmA.v);
-            glVertex3dv((const GLdouble*)vecA.v);
-            glNormal3dv((const GLdouble*)nrmB.v);
-            glVertex3dv((const GLdouble*)vecB.v);
-            glNormal3dv((const GLdouble*)nrmC.v);
-            glVertex3dv((const GLdouble*)vecC.v);
+            glVertex3d(vecA.x, vecA.y, vecA.z);
+            glNormal3d(nrmA.x, nrmA.y, nrmA.z);
+            glVertex3d(vecB.x, vecB.y, vecB.z);
+            glNormal3d(nrmB.x, nrmB.y, nrmB.z);
+            glVertex3d(vecC.x, vecC.y, vecC.z);
+            glNormal3d(nrmC.x, nrmC.y, nrmC.z);
             glEnd();
             
             glDisable(GL_LIGHTING);
@@ -124,15 +121,12 @@ void draw_obj() {
             glMaterialfv(GL_FRONT, GL_DIFFUSE, matDiff);
             glBegin(GL_TRIANGLES);
             // glNormal3dv(normal);
-            // glVertex3d(vecA.x, vecA.y, vecA.z);
-            // glVertex3d(vecB.x, vecB.y, vecB.z);
-            // glVertex3d(vecC.x, vecC.y, vecC.z);
-            glNormal3dv((const GLdouble*)nrmA.v);
-            glVertex3dv((const GLdouble*)vecA.v);
-            glNormal3dv((const GLdouble*)nrmB.v);
-            glVertex3dv((const GLdouble*)vecB.v);
-            glNormal3dv((const GLdouble*)nrmC.v);
-            glVertex3dv((const GLdouble*)vecC.v);
+            glVertex3d(vecA.x, vecA.y, vecA.z);
+            glNormal3d(nrmA.x, nrmA.y, nrmA.z);
+            glVertex3d(vecB.x, vecB.y, vecB.z);
+            glNormal3d(nrmB.x, nrmB.y, nrmB.z);
+            glVertex3d(vecC.x, vecC.y, vecC.z);
+            glNormal3d(nrmC.x, nrmC.y, nrmC.z);
             glEnd();
 
             glDisable(GL_LIGHTING);

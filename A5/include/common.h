@@ -43,10 +43,10 @@ static void HandleError( cudaError_t err,
                                     __FILE__, __LINE__ ); \
                             exit( EXIT_FAILURE );}}
 
-# define        TIMING_BEGIN \
+#define        TIMING_BEGIN \
         {auto time_start = std::chrono::system_clock::now();
 
-# define        TIMING_END(message) \
+#define        TIMING_END(message) \
         {auto time_end = std::chrono::system_clock::now();\
         auto  time_duration = \
         std::chrono::duration_cast<std::chrono::microseconds>(time_end - time_start);\
