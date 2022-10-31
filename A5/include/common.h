@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <chrono>
 #include <cuda_runtime.h>
+#include "helper_cuda.h"
 
 static void HandleError( cudaError_t err,
                          const char *file,
@@ -50,6 +51,22 @@ static void HandleError( cudaError_t err,
         {auto time_end = std::chrono::system_clock::now();\
         auto  time_duration = \
         std::chrono::duration_cast<std::chrono::microseconds>(time_end - time_start);\
-        printf("%s: %2.5f milliseconds\n", (message), static_cast<double>(time_duration.count()/1000.0));}}
+        printf("%s %2.5f milliseconds\n", (message), static_cast<double>(time_duration.count()/1000.0));}}
+
+#define START_GPU {\
+cudaEvent_t     start, stop;\
+float   elapsedTime;\
+checkCudaErrors(cudaEventCreate(&start)); \
+checkCudaErrors(cudaEventCreate(&stop));\
+checkCudaErrors(cudaEventRecord(start, 0));\
+
+#define END_GPU \
+checkCudaErrors(cudaEventRecord(stop, 0));\
+checkCudaErrors(cudaEventSynchronize(stop));\
+checkCudaErrors(cudaEventElapsedTime(&elapsedTime, start, stop)); \
+printf("GPU Time used:  %3.1f ms\n", elapsedTime);\
+checkCudaErrors(cudaEventDestroy(start));\
+checkCudaErrors(cudaEventDestroy(stop));}
+
 
 #endif  // __BOOK_H__

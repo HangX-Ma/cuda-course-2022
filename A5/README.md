@@ -32,6 +32,19 @@ terminate called after throwing an instance of 'thrust::system::system_error'
 Aborted (core dumped)
 ```
 
+## 3. thrust::reduce
+I thought the following code only stored the sum result of each `vecIn`'s element in `result`. But it also changed the `vecIn`. If your data in `vecIn` are `[1, 3, 5, 6]`, the result will be `[1, 4, 9, 15]`. **If you really want to use `thrust` library, please do test first!**.
+```c++
+int result = thrust::reduce(vecIn.begin(), vecIn.end(), thrust::plus<int>(), 0);
+```
+
+## 4. size_t
+You can call `.size()` method in STL or thrust `vector` template class. Its returned type `size_t` may not correspond to what you want. Please transform the type to avoid unexpected behaviors.
+
+## 5. raw pointer
+If you have a `thrust::device_vector` variable `a`, `a.data()` will return `thrust::device_ptr` type, and `a.data().get()` will return the raw pointer type, stored in GPU memory.
+
+
 # Reference
 > [1] [Thinking Parallel, Part I: Collision Detection on the GPU](https://developer.nvidia.com/blog/thinking-parallel-part-i-collision-detection-gpu/)
 > [2] [Thinking Parallel, Part II: Tree Traversal on the GPU](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)

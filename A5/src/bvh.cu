@@ -210,6 +210,7 @@ BVH::construct() {
     printf(" num_objects size:   %lu bytes\n aabbs size:         %lu bytes\n vertices size:      %lu bytes\n\n", 
                 num_objects * sizeof(triangle_t), num_objects * sizeof(AABB), normals_h_.size() * sizeof(vec3f));
 
+    TIMING_BEGIN
     /* ---------------- STAGE 1: load objects ---------------- */
     /* allocte specific memory size */
     HANDLE_ERROR(cudaMalloc((void**)&triangle_indices_d_, num_objects * sizeof(triangle_t)));
@@ -298,6 +299,8 @@ BVH::construct() {
     printf("--> lbvh hierarchy has been constructed.\n");
 
     bvh_status = BVH_STATUS::STATE_GET_NEIGHBOUR;
+    
+    TIMING_END("--> Building lbvh cost:")
 
     return;
 }

@@ -59,7 +59,6 @@ propagate_Kernel(std::uint32_t num_objects, std::uint32_t* adjObjects, std::uint
         curr[idx] += prev[adjObjects[prefix_sum[idx]/*offset*/ + i]];
     }
     curr[idx] /= (float)(adjObjNum + 1);
-    curr[adjObjects[prefix_sum[0]]] = 0.5;
 }
 #endif
 
@@ -74,6 +73,7 @@ lbvh::BVH::propagate() {
     std::uint32_t* scan_res_ptr = thrust::raw_pointer_cast(scan_res_d_.data());
     std::uint32_t* adjObjNumList_raw_ptr = thrust::raw_pointer_cast(adjObjNumList_d_.data());
 
+    // START_GPU
     /* kernel property */
     int threadsPerBlock = 256;
     int blocksPerGrid = (gNumObjects + threadsPerBlock - 1) / threadsPerBlock;
@@ -96,7 +96,7 @@ lbvh::BVH::propagate() {
     else if (dstOut == 0) {
         HANDLE_ERROR(cudaMemcpy(gIntensity_h_, gIntensityIn_d_,  gNumObjects * sizeof(float), cudaMemcpyDeviceToHost));
     }
-
+    // END_GPU
     for (int i = 0; i < HEAT_SOURCE_SIZE; i++) {
         gIntensity_h_[heatSource[i]] = 1.0;
     }
@@ -128,6 +128,7 @@ void startHeatTransfer() {
         for (int i = 0; i < HEAT_SOURCE_SIZE; i++) {
             gIntensity_h_[heatSource[i]] = 1.0;
         }
+        // HANDLE_ERROR(cudaMemcpy(gIntensityIn_d_, gIntensity_h_, sizeof(float) * gNumObjects, cudaMemcpyHostToDevice));
 
         printf("--> Heat source IDs have been determined.\n");
         printf("--> Initialization done.\n");
@@ -136,7 +137,7 @@ void startHeatTransfer() {
     else {
         TIMING_BEGIN
         bvhInstance->propagate();
-        TIMING_END("time cost: ")
+        TIMING_END("time cost:")
     }
 }
 
