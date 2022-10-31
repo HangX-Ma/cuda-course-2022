@@ -321,6 +321,7 @@ BVH::getNbInfo() {
     }
     std::cout << div_signs << " Stage 5: Get Triangles' adjecent neighbour." << div_signs << std::endl;
 
+    TIMING_BEGIN
     /* before we use thrust vector, we need to allocate memory for it first. */
     adjObjNumList_d_.resize(num_objects);
     std::uint32_t* adjObjNumList_d_rawPtr = thrust::raw_pointer_cast(adjObjNumList_d_.data());
@@ -372,6 +373,8 @@ BVH::getNbInfo() {
 
     /* release temporary buffer memory */
     HANDLE_ERROR(cudaFree(adjObjectIDsListOut));
+
+    TIMING_END("--> Finding adjacent nodes cost:")
     bvh_status = BVH_STATUS::STATE_PROPAGATE;
 }
 
