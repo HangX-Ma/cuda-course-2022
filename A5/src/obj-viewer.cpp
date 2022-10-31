@@ -85,37 +85,31 @@ void draw_obj() {
     glPushMatrix();
 
     for (int idx = 0; idx < gNumObjects; idx++) {
-        int tri_sortedIdx = gSortedObjIDs[idx];
-        lbvh::vec3f vecA = gVertices[gTriangles[tri_sortedIdx].a.vertex_index];
-        lbvh::vec3f vecB = gVertices[gTriangles[tri_sortedIdx].b.vertex_index];
-        lbvh::vec3f vecC = gVertices[gTriangles[tri_sortedIdx].c.vertex_index];
+        // int idx = gSortedObjIDs[idx];
+        lbvh::vec3f vecA = gVertices[gTriangles[idx].a.vertex_index];
+        lbvh::vec3f vecB = gVertices[gTriangles[idx].b.vertex_index];
+        lbvh::vec3f vecC = gVertices[gTriangles[idx].c.vertex_index];
 
-        lbvh::vec3f nrmA = gNormals[gTriangles[tri_sortedIdx].a.normal_index];
-        lbvh::vec3f nrmB = gNormals[gTriangles[tri_sortedIdx].b.normal_index];
-        lbvh::vec3f nrmC = gNormals[gTriangles[tri_sortedIdx].c.normal_index];
+        lbvh::vec3f nrmA = gNormals[gTriangles[idx].a.normal_index];
+        lbvh::vec3f nrmB = gNormals[gTriangles[idx].b.normal_index];
+        lbvh::vec3f nrmC = gNormals[gTriangles[idx].c.normal_index];
 
-        // GLdouble normal[3];
-        // calculate_normal(vecA, vecB, vecC, normal);
+        GLdouble normal[3];
+        calculate_normal(vecA, vecB, vecC, normal);
         if (dstOut == -1) {
             glEnable(GL_LIGHTING);
             glBegin(GL_TRIANGLES);
             // glColor3f(OBJ_COLOR.red, OBJ_COLOR.green, OBJ_COLOR.blue);
-            // glNormal3dv(normal);
-            // glVertex3d(vecA.x, vecA.y, vecA.z);
-            // glVertex3d(vecB.x, vecB.y, vecB.z);
-            // glVertex3d(vecC.x, vecC.y, vecC.z);
-            glNormal3dv((const GLdouble*)nrmA.v);
-            glVertex3dv((const GLdouble*)vecA.v);
-            glNormal3dv((const GLdouble*)nrmB.v);
-            glVertex3dv((const GLdouble*)vecB.v);
-            glNormal3dv((const GLdouble*)nrmC.v);
-            glVertex3dv((const GLdouble*)vecC.v);
+            glNormal3dv(normal);
+            glVertex3d(vecA.x, vecA.y, vecA.z);
+            glVertex3d(vecB.x, vecB.y, vecB.z);
+            glVertex3d(vecC.x, vecC.y, vecC.z);
             glEnd();
             
             glDisable(GL_LIGHTING);
         }
         else {
-            float tt = gIntensity_h_[tri_sortedIdx];
+            float tt = gIntensity_h_[idx];
             GLfloat matDiff[4] = { 1.0, 1.0, 0.0, 1.0 };
             matDiff[1] = 1 - tt;
             matDiff[0] = tt;
@@ -123,16 +117,10 @@ void draw_obj() {
             glEnable(GL_LIGHTING);
             glMaterialfv(GL_FRONT, GL_DIFFUSE, matDiff);
             glBegin(GL_TRIANGLES);
-            // glNormal3dv(normal);
-            // glVertex3d(vecA.x, vecA.y, vecA.z);
-            // glVertex3d(vecB.x, vecB.y, vecB.z);
-            // glVertex3d(vecC.x, vecC.y, vecC.z);
-            glNormal3dv((const GLdouble*)nrmA.v);
-            glVertex3dv((const GLdouble*)vecA.v);
-            glNormal3dv((const GLdouble*)nrmB.v);
-            glVertex3dv((const GLdouble*)vecB.v);
-            glNormal3dv((const GLdouble*)nrmC.v);
-            glVertex3dv((const GLdouble*)vecC.v);
+            glNormal3dv(normal);
+            glVertex3d(vecA.x, vecA.y, vecA.z);
+            glVertex3d(vecB.x, vecB.y, vecB.z);
+            glVertex3d(vecC.x, vecC.y, vecC.z);
             glEnd();
 
             glDisable(GL_LIGHTING);
@@ -224,7 +212,7 @@ void display() {
 }
 
 void idle_fem() {
-    if (b['d']) {
+    if (b['i']) {
         startHeatTransfer();
     }
 

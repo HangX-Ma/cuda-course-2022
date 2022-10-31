@@ -333,8 +333,15 @@ BVH::getNbInfo() {
             (num_objects, max_buffer_size, aabbs_d_, internalNodes, adjObjectsOut, objectIDs, adjObjNumList_d_ptr);
     HANDLE_ERROR(cudaDeviceSynchronize());
 
+    adjObjNumList_h_ = adjObjNumList_d_;
+    std::uint32_t* adjObjNumList_raw_ptr = thrust::raw_pointer_cast(adjObjNumList_h_.data());
     /* get adjacent neighbour sum */
-    num_adjObjects = thrust::reduce(adjObjNumList_d_.begin(), adjObjNumList_d_.end(), 0, thrust::plus<std::uint32_t>());
+    num_adjObjects = 0;
+    for (int i = 0; i < num_objects; i++) {
+        num_adjObjects += adjObjNumList_raw_ptr[i];
+        // printf("%d ", adjObjNumList_raw_ptr[i]);
+    }
+    // num_adjObjects = thrust::reduce(adjObjNumList_d_.begin(), adjObjNumList_d_.end(), 0, thrust::plus<std::uint32_t>());
     printf("--> Triangles: %u, AdjTriangles: %u\n", num_objects, num_adjObjects);
 
     /* adjacent neighbour info container */
@@ -346,9 +353,7 @@ BVH::getNbInfo() {
 
     /* copy data from deivce to host */
     scan_res_h_ = scan_res_d_;
-    adjObjNumList_h_ = adjObjNumList_d_;
     std::uint32_t* scan_res_raw_ptr = thrust::raw_pointer_cast(scan_res_h_.data());
-    std::uint32_t* adjObjNumList_raw_ptr = thrust::raw_pointer_cast(adjObjNumList_h_.data());
     /* wait for data preparation */
     HANDLE_ERROR(cudaDeviceSynchronize());
 
@@ -527,7 +532,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
     Node* leftChild;
     if (split == first) {
         leftChild = &leafNodes[split];
-        leftChild->bbox = bboxes[split];
+        leftChild->bbox = bboxes[leftChild->objectID];
     } // only one node remained, so that this node must be a leaf node
     else {
         leftChild = &internalNodes[split];
@@ -537,7 +542,7 @@ construtInternalNodes_kernel(std::uint32_t* sortedMortonCodes, std::uint32_t* so
     Node* rightChild;
     if (split + 1 == last) {
         rightChild = &leafNodes[split + 1];
-        rightChild->bbox = bboxes[split + 1];
+        rightChild->bbox = bboxes[rightChild->objectID];
     }
     else {
         rightChild = &internalNodes[split + 1];
@@ -601,7 +606,7 @@ NbInfoScan_Kernel(std::uint32_t num_object, int max_buffer_size , AABB* aabbs, N
     }
 
     /* query for each object's neighbour */
-    std::uint32_t adjObjNum = lbvh::query_device(aabbs + sortedObjectIDs[idx], 
+    std::uint32_t adjObjNum = lbvh::query_device(aabbs + idx, 
                                                 internalNodes, 
                                                 adjObjectsOut + idx * max_buffer_size, 
                                                 max_buffer_size);
