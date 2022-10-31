@@ -361,7 +361,7 @@ BVH::getNbInfo() {
 
     for (int i = 0; i < num_objects; i++) {
         HANDLE_ERROR(cudaMemcpy(adjObjInfo_d_ + scan_res_raw_ptr[i] /* dst offset */, 
-                                adjObjectsOut + max_buffer_size * i /* src offset */, 
+                                adjObjectIDsListOut + max_buffer_size * i /* src offset */, 
                                 adjObjNumList_raw_ptr[i] * sizeof(std::uint32_t) /* data size */, 
                                 cudaMemcpyDeviceToDevice)
                                 );
