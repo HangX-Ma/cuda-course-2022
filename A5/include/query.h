@@ -36,7 +36,7 @@ __device__ std::uint32_t
 query_device(AABB* target, Node* internalNodes, 
     std::uint32_t* outBuffer, const std::uint32_t max_buffer_size = 0xFFFFFFFF) {
 
-    Node* stack[256];
+    Node* stack[64];
     Node** stackPtr = stack;
     // root node is always zero
     *stackPtr++ = &internalNodes[0];

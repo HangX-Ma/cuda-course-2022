@@ -307,10 +307,14 @@ BVH::construct() {
 
 
 BVH::~BVH() {
-    HANDLE_ERROR(cudaFree(triangle_indices_d_));
-    HANDLE_ERROR(cudaFree(vertices_d_));
-    HANDLE_ERROR(cudaFree(normals_d_));
+    HANDLE_ERROR(cudaFree(adjObjInfo_d_));
+    HANDLE_ERROR(cudaFree(internalNodes));
+    HANDLE_ERROR(cudaFree(leafNodes));
+    HANDLE_ERROR(cudaFree(mortonCodes));
     HANDLE_ERROR(cudaFree(aabbs_d_));
+    HANDLE_ERROR(cudaFree(normals_d_));
+    HANDLE_ERROR(cudaFree(vertices_d_));
+    HANDLE_ERROR(cudaFree(triangle_indices_d_));
 }
 
 __host__ void 
@@ -329,7 +333,7 @@ BVH::getNbInfo() {
     /* temparory buffer used to store the adjacent neighbour */
     int max_buffer_size = 20;
     std::uint32_t* adjObjectIDsListOut;
-    HANDLE_ERROR(cudaMalloc((void**)(&adjObjectIDsListOut), num_objects * max_buffer_size * sizeof(std::uint32_t)));
+    HANDLE_ERROR(cudaHostAlloc((void**)(&adjObjectIDsListOut), num_objects * max_buffer_size * sizeof(std::uint32_t), cudaMemcpyDefault));
 
     /* kernel property */
     int threadsPerBlock = 256;
@@ -364,15 +368,14 @@ BVH::getNbInfo() {
     HANDLE_ERROR(cudaDeviceSynchronize());
 
     for (int i = 0; i < num_objects; i++) {
-        HANDLE_ERROR(cudaMemcpy(adjObjInfo_d_ + scan_res_raw_ptr[i] /* dst offset */, 
+        HANDLE_ERROR(cudaMemcpyAsync(adjObjInfo_d_ + scan_res_raw_ptr[i] /* dst offset */, 
                                 adjObjectIDsListOut + max_buffer_size * i /* src offset */, 
                                 adjObjNumList_raw_ptr[i] * sizeof(std::uint32_t) /* data size */, 
                                 cudaMemcpyDeviceToDevice)
                                 );
     }
-
     /* release temporary buffer memory */
-    HANDLE_ERROR(cudaFree(adjObjectIDsListOut));
+    HANDLE_ERROR(cudaFreeHost(adjObjectIDsListOut));
 
     TIMING_END("--> Finding adjacent nodes cost:")
     bvh_status = BVH_STATUS::STATE_PROPAGATE;
