@@ -6,7 +6,6 @@
 #include <thrust/functional.h>
 
 
-
 thrust::host_vector<int> adjTriNums_h_;
 thrust::device_vector<int> adjTriNums_d_;
 thrust::host_vector<int> prefix_sum_h_;
@@ -24,7 +23,7 @@ extern std::vector<std::vector<int>> gAdjInfo;
 extern std::vector<REAL> gIntensity[2];
 
 
-
+#if !QUICK_TRANS
 __global__ void 
 propagate_Kernel(int num_objects, REAL* curr, REAL* prev, int* adjObjNums, int* prefix_sum, int* adjInfo) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -39,6 +38,26 @@ propagate_Kernel(int num_objects, REAL* curr, REAL* prev, int* adjObjNums, int* 
     }
     curr[idx] /= (REAL)(adjObjNum + 1);
 }
+#else
+__global__ void 
+propagate_Kernel(int num_objects, REAL* curr, REAL* prev, int* adjObjNums, int* prefix_sum, int* adjInfo) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx > num_objects - 1) {
+        return;
+    }
+    std::uint32_t adjObjNum = adjObjNums[idx];
+
+    curr[idx] = 0.6 * prev[idx]; // heat loss
+    for (int i = 0; i < adjObjNum; i++) {
+        curr[idx] += prev[adjInfo[prefix_sum[idx]/*offset*/ + i]];
+    }
+    curr[idx] /= (float)(adjObjNum + 1);
+    curr[idx] += HEAT_TRANSFER_SPEED * prev[idx];
+    curr[idx] = fminf(curr[idx], 1.0f);
+}
+
+#endif
+
 
 void doPropagateKernel(int flag, int num) {
 

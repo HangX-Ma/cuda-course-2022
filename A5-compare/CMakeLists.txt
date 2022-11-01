@@ -32,7 +32,8 @@ if(${CUDA_FOUND})
     # set(CUDA_SOURCE_PROPERTY_FORMAT OBJ)
     set(CUDA_SEPARABLE_COMPILATION ON)
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-arch=sm_61;-gencode=arch=compute_52,code=sm_52;-rdc=true;-O2;-G;-g")#根据具体GPU性能更改算力参数
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-arch=sm_61;-gencode=arch=compute_52,code=sm_52;-rdc=true;-O2;-G;-g")# Geforce MX 150
+    # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-arch=sm_86;-gencode=arch=compute_52,code=sm_52;-rdc=true;-O2;-G;-g")# RTX3080 
     # Only when you have CUDA 8 or newer version (--expt-extended-lambda or --extended-lambda)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-Xcompiler;-fPIC")
 else(${CUDA_FOUND})
@@ -79,5 +80,6 @@ target_link_libraries(template ${CUDA_LIBRARIES} ${OPENGL_LIBRARIES} ${GLUT_LIBR
 set_target_properties(template PROPERTIES
     OUTPUT_NAME "heatTransfer3D"
     CUDA_SEPARABLE_COMPILATION ON
-    CUDA_ARCHITECTURES 61
+    CUDA_ARCHITECTURES 61 # Geforce MX150
+    # CUDA_ARCHITECTURES 86 # RTX3080
     )

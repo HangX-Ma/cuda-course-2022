@@ -99,13 +99,15 @@ void doPropogate()
 	TIMING_BEGIN
 		for (int i = 0; i < num; i++) {
 			std::vector<int> &adjs = gAdjInfo[i];
-			gIntensity[currentPass][i] = gIntensity[prevPass][i];
+			gIntensity[currentPass][i] = 0.6 * gIntensity[prevPass][i];
 			for (int j = 0; j < adjs.size(); j++) {
 				int tj = adjs[j];
 				gIntensity[currentPass][i] += gIntensity[prevPass][tj];
 			}
 			// printf("%u ", adjs.size());
 			gIntensity[currentPass][i] /= REAL(adjs.size() + 1);
+			gIntensity[currentPass][i] += HEAT_TRANSFER_SPEED * gIntensity[prevPass][i];
+			gIntensity[currentPass][i] = fmin(gIntensity[currentPass][i], 1.0f);
 		}
 
 	for (int i = 0; i < gSources.size(); i++) {
