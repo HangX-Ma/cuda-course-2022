@@ -43,7 +43,7 @@ propagate_Kernel(std::uint32_t num_objects, std::uint32_t* adjObjects, std::uint
     }
     std::uint32_t adjObjNum = adjObjNums[idx];
 
-    curr[idx] = prev[idx];
+    curr[idx] = 0.6 * prev[idx]; // heat loss
     for (int i = 0; i < adjObjNum; i++) {
         curr[idx] += prev[adjObjects[prefix_sum[idx]/*offset*/ + i]];
     }
@@ -124,7 +124,7 @@ void startHeatTransfer() {
 
         /* allocate data */
         // gIntensity_h_ = (float*)malloc(gNumObjects * sizeof(float));
-        HANDLE_ERROR(cudaHostAlloc((void**)&gIntensity_h_, gNumObjects * sizeof(float), cudaHostAllocDefault));
+        HANDLE_ERROR(cudaHostAlloc((void**)&gIntensity_h_, gNumObjects * sizeof(float*), cudaHostAllocDefault));
         #if NORMAL_GPU
         HANDLE_ERROR(cudaMalloc((void**)&gIntensityIn_d_, gNumObjects * sizeof(float)));
         HANDLE_ERROR(cudaMalloc((void**)&gIntensityOut_d_, gNumObjects * sizeof(float)));
