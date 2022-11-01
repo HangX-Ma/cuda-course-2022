@@ -62,6 +62,9 @@ Result = PASS
 ## Demo Lists
 - [x] **A1** - [Julia Set](A1/README.md): Change the julia-set fractal function and decorate the julia-set graphic design with gradient color.
 - [x] **A2** - [Dynamic Ray Tracing](A2/README.md): Realize the dynamic circumstance ray tracing, using noconst memory and const memory for comparison.
+- [x] **A3** - [VectorAdd Using Streams](A3/README.md): Use streams technology to speed up the `VectorAdd` process.
+- [x] **A4** - [Mathematical Proof of Scan](A4/README.md): Mathematical proof of parallel scan to get prefix sum.
+- [x] **A5** - [Heat Transfer 3D](A5/README.md): Heat transfer simulation in 3D space.
 
 ## _X11 Forwarding Service_ on GPU server
 Both on server and client.
