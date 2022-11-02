@@ -102,8 +102,11 @@ void draw_obj() {
             // glColor3f(OBJ_COLOR.red, OBJ_COLOR.green, OBJ_COLOR.blue);
             glNormal3dv(normal);
             glVertex3d(vecA.x, vecA.y, vecA.z);
+            // glNormal3d(nrmA.x, nrmA.y, nrmA.z);
             glVertex3d(vecB.x, vecB.y, vecB.z);
+            // glNormal3d(nrmB.x, nrmB.y, nrmB.z);
             glVertex3d(vecC.x, vecC.y, vecC.z);
+            // glNormal3d(nrmC.x, nrmC.y, nrmC.z);
             glEnd();
             
             glDisable(GL_LIGHTING);
@@ -119,8 +122,11 @@ void draw_obj() {
             glBegin(GL_TRIANGLES);
             glNormal3dv(normal);
             glVertex3d(vecA.x, vecA.y, vecA.z);
+            // glNormal3d(nrmA.x, nrmA.y, nrmA.z);
             glVertex3d(vecB.x, vecB.y, vecB.z);
+            // glNormal3d(nrmB.x, nrmB.y, nrmB.z);
             glVertex3d(vecC.x, vecC.y, vecC.z);
+            // glNormal3d(nrmC.x, nrmC.y, nrmC.z);
             glEnd();
 
             glDisable(GL_LIGHTING);

@@ -164,13 +164,12 @@ private:
     Node* internalNodes;  //!< num_objects - 1
     Node* leafNodes;          //!< num_objects
 
-    std::vector<triangle_t> triangle_indices_h_;
-    std::vector<vec3f> vertices_h_;
-    std::vector<vec3f> normals_h_;
+    thrust::host_vector<triangle_t> triangle_indices_h_;
+    thrust::host_vector<vec3f> vertices_h_;
+    thrust::host_vector<vec3f> normals_h_;
 
     triangle_t* triangle_indices_d_;
     vec3f* vertices_d_;
-    vec3f* normals_d_;
     AABB* aabbs_d_;
     
     /* store each object's neighbour's ids */

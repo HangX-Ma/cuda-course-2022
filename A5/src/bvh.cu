@@ -215,7 +215,6 @@ BVH::construct() {
     /* allocte specific memory size */
     HANDLE_ERROR(cudaMalloc((void**)&triangle_indices_d_, num_objects * sizeof(triangle_t)));
     HANDLE_ERROR(cudaMalloc((void**)&vertices_d_, vertices_h_.size() * sizeof(vec3f)));
-    HANDLE_ERROR(cudaMalloc((void**)&normals_d_, normals_h_.size() * sizeof(vec3f)));
     HANDLE_ERROR(cudaMalloc((void**)&aabbs_d_, num_objects * sizeof(AABB)));
 
 
@@ -226,10 +225,6 @@ BVH::construct() {
 
     HANDLE_ERROR(cudaMemcpy(vertices_d_, vertices_h_.data(), 
                             vertices_h_.size() * sizeof(vec3f), 
-                            cudaMemcpyHostToDevice));
-
-    HANDLE_ERROR(cudaMemcpy(normals_d_, normals_h_.data(), 
-                            normals_h_.size() * sizeof(vec3f), 
                             cudaMemcpyHostToDevice));
 
     /* construct aabb */
@@ -312,7 +307,6 @@ BVH::~BVH() {
     HANDLE_ERROR(cudaFree(leafNodes));
     HANDLE_ERROR(cudaFree(mortonCodes));
     HANDLE_ERROR(cudaFree(aabbs_d_));
-    HANDLE_ERROR(cudaFree(normals_d_));
     HANDLE_ERROR(cudaFree(vertices_d_));
     HANDLE_ERROR(cudaFree(triangle_indices_d_));
 }
