@@ -50,4 +50,5 @@ If you have a `thrust::device_vector` variable `a`, `a.data()` will return `thru
 > [2] [Thinking Parallel, Part II: Tree Traversal on the GPU](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)\
 > [3] [Thinking Parallel, Part III: Tree Construction on the GPU](https://developer.nvidia.com/blog/thinking-parallel-part-iii-tree-construction-gpu/)\
 > [Resource] [Maximizing Parallelism in the Construction of BVHs, Octrees, and k-d Trees](https://research.nvidia.com/publication/2012-06_maximizing-parallelism-construction-bvhs-octrees-and-k-d-trees)\
-> [Resource] [tinyobjloader-v1.0.6](https://github.com/tinyobjloader/tinyobjloader/tree/v1.0.6)
+> [Resource] [tinyobjloader-v1.0.6](https://github.com/tinyobjloader/tinyobjloader/tree/v1.0.6)\
+> [Resource] [simple obj-viewer](https://github.com/justint/obj-viewer)
