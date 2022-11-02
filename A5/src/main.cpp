@@ -46,8 +46,17 @@ struct Arg: public option::Arg
 
 enum  optionIndex { UNKNOWN, HELP, FILE_PATH, NOTE };
 const option::Descriptor usage[] = {
-    {UNKNOWN,   0, "",  "",     Arg::None,      "USAGE: program [options]\n\n"
-                                                "Options:" },
+    {UNKNOWN,   0, "",  "",     Arg::None,      "USAGE: program [options] [parameter]\n"
+                                                "\n[Arrow Up]: Zoom in"
+                                                "\n[Arrow Down]: Zoom out"
+                                                "\n[Arrow Left]: Rotate anticlockwise"
+                                                "\n[Arrow Right]: Rotate clockwise"
+                                                "\n[d]: Next frame"
+                                                "\n[i]: Open/Close automatic frame update"
+                                                "\n[n]: Render mode"
+                                                "\n[w]: Wire mode"
+                                                "\n[ESC]: quit"
+                                                "\n\nOptions:" },
     {HELP,      0, "",  "help", Arg::None,      "  --help, \tPrint usage and exit." },
     {FILE_PATH, 0, "f", "file", Arg::Required,  "  --file, -f \tOjbect file path." },
     {NOTE,      0, "",  "",     Arg::None,      "\nNOTE: (.obj) file needs to be determined by yourself."},
