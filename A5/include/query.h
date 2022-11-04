@@ -34,7 +34,7 @@ namespace lbvh {
 // query object indices that potentially overlaps with query aabb.
 __device__ std::uint32_t 
 query_device(AABB* target, Node* internalNodes, 
-    std::uint32_t* outBuffer, const std::uint32_t max_buffer_size = 0xFFFFFFFF) {
+    std::uint32_t* outBuffer, bool ifFirst, const std::uint32_t max_buffer_size = 0xFFFFFFFF) {
 
     Node* stack[64];
     Node** stackPtr = stack;
@@ -50,8 +50,8 @@ query_device(AABB* target, Node* internalNodes,
         // check left child tree
         if (overlaps(*target, leftNode->bbox)) {
             if (leftNode->isLeaf) {
-                if (found_num < max_buffer_size - 1) {
-                    *outBuffer++ = (leftNode)->objectID;
+                if ((!ifFirst) && found_num < (max_buffer_size)) {
+                    outBuffer[found_num] = (leftNode)->objectID;
                 }
                 ++found_num;
             } 
@@ -63,8 +63,8 @@ query_device(AABB* target, Node* internalNodes,
         // check right child tree
         if (overlaps(*target, rightNode->bbox)) {
             if (rightNode->isLeaf) {
-                if (found_num < max_buffer_size - 1) {
-                    *outBuffer++ = (rightNode)->objectID;
+                if (((!ifFirst)) && found_num < (max_buffer_size)) {
+                    outBuffer[found_num] = (rightNode)->objectID;
                 }
                 ++found_num;
             } 

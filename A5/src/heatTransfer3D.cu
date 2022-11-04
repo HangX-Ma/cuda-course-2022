@@ -8,7 +8,7 @@
 #define QUICK_TRANS (1)
 
 #define HEAT_SOURCE_SIZE (3)
-#define HEAT_TRANSFER_SPEED (0.05f)
+#define HEAT_TRANSFER_SPEED (0.10f)
 
 volatile int dstOut = -1;
 float isource = 1.0f;
@@ -21,9 +21,13 @@ float* gIntensity_h_; // pined memory
 float* gIntensityIn_d_;
 float* gIntensityOut_d_;
 
+#if TEXTURE_GPU
 texture<float>  texIn;
-texture<float>  texOut;
+#endif
 
+#if STEAM_GPU
+cudaStream_t stream1;
+#endif
 
 /* global value */
 extern std::uint32_t gNumObjects;
@@ -43,13 +47,13 @@ std::string div_signs(10, '-');
         }
         std::uint32_t adjObjNum = adjObjNums[idx];
 
-        curr[idx] = 0.6 * tex1Dfetch(texIn, idx); // heat loss
+        float curr_tmp = 0.6 * tex1Dfetch(texIn, idx); // heat loss
         for (int i = 0; i < adjObjNum; i++) {
-            curr[idx] +=  tex1Dfetch(texIn, adjObjects[prefix_sum[idx]/*offset*/ + i]);
+            curr_tmp +=  tex1Dfetch(texIn, adjObjects[prefix_sum[idx]/*offset*/ + i]);
         }
-        curr[idx] /= (float)(adjObjNum + 1);
-        curr[idx] += HEAT_TRANSFER_SPEED * tex1Dfetch(texIn, idx);
-        curr[idx] = fminf(curr[idx], 1.0f);
+        curr_tmp /= (float)(adjObjNum + 1);
+        curr_tmp += HEAT_TRANSFER_SPEED * tex1Dfetch(texIn, idx);
+        curr[idx] = fminf(curr_tmp, 1.0f);
     }
 #else
     #if QUICK_TRANS
@@ -62,13 +66,14 @@ std::string div_signs(10, '-');
         }
         std::uint32_t adjObjNum = adjObjNums[idx];
 
-        curr[idx] = 0.6 * prev[idx]; // heat loss
+        float curr_tmp = 0.6 * prev[idx]; // heat loss
         for (int i = 0; i < adjObjNum; i++) {
-            curr[idx] += prev[adjObjects[prefix_sum[idx]/*offset*/ + i]];
+            curr_tmp += prev[adjObjects[prefix_sum[idx]/*offset*/ + i]];
         }
-        curr[idx] /= (float)(adjObjNum + 1);
-        curr[idx] += HEAT_TRANSFER_SPEED * prev[idx];
-        curr[idx] = fminf(curr[idx], 1.0f);
+        curr_tmp /= (float)(adjObjNum + 1);
+        curr_tmp += HEAT_TRANSFER_SPEED * prev[idx];
+        curr[idx] = fminf(curr_tmp, 1.0f);
+        
     }
     #else
     __global__ void 
@@ -106,18 +111,39 @@ lbvh::BVH::propagate() {
     /* kernel property */
     int threadsPerBlock = 256;
     int blocksPerGrid = (gNumObjects + threadsPerBlock - 1) / threadsPerBlock;
-    HANDLE_ERROR(cudaMemcpy(gIntensityIn_d_, gIntensity_h_, sizeof(float) * gNumObjects, cudaMemcpyHostToDevice));
-    #if TEXTURE_GPU
-    propagate_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-            (gNumObjects, adjObjInfo_d_, gSortedObjIDs, scan_res_ptr, adjObjNumList_raw_ptr, gIntensityOut_d_);
+    #if STEAM_GPU
+        HANDLE_ERROR(cudaMemcpyAsync(gIntensityIn_d_, gIntensity_h_, 
+                sizeof(float) * gNumObjects, cudaMemcpyHostToDevice, stream1));
     #else
-    propagate_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-            (gNumObjects, adjObjInfo_d_, gSortedObjIDs, scan_res_ptr, adjObjNumList_raw_ptr, gIntensityIn_d_, gIntensityOut_d_);
+        HANDLE_ERROR(cudaMemcpy(gIntensityIn_d_, gIntensity_h_, 
+                sizeof(float) * gNumObjects, cudaMemcpyHostToDevice));
+    #endif
+    #if TEXTURE_GPU
+        propagate_Kernel<<<blocksPerGrid, threadsPerBlock>>>
+                (gNumObjects, adjObjInfo_d_, gSortedObjIDs, scan_res_ptr, 
+                    adjObjNumList_raw_ptr, gIntensityOut_d_);
+    #else
+        #if STEAM_GPU
+        propagate_Kernel<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>
+                (gNumObjects, adjObjInfo_d_, gSortedObjIDs, scan_res_ptr, 
+                    adjObjNumList_raw_ptr, gIntensityIn_d_, gIntensityOut_d_);
+        #else
+        propagate_Kernel<<<blocksPerGrid, threadsPerBlock>>>
+                (gNumObjects, adjObjInfo_d_, gSortedObjIDs, scan_res_ptr, 
+                    adjObjNumList_raw_ptr, gIntensityIn_d_, gIntensityOut_d_);
+        #endif
     #endif
     HANDLE_ERROR(cudaDeviceSynchronize());
     /* copy out calculated value */
-    HANDLE_ERROR(cudaMemcpy(gIntensity_h_, gIntensityOut_d_,  gNumObjects * sizeof(float), cudaMemcpyDeviceToHost));
-
+    #if STEAM_GPU
+    HANDLE_ERROR(cudaMemcpyAsync(gIntensity_h_, gIntensityOut_d_,  
+            gNumObjects * sizeof(float), cudaMemcpyDeviceToHost, stream1));
+    HANDLE_ERROR( cudaStreamSynchronize( stream1 ) );
+    #else
+    HANDLE_ERROR(cudaMemcpy(gIntensity_h_, gIntensityOut_d_,  
+            gNumObjects * sizeof(float), cudaMemcpyDeviceToHost));
+    #endif
+    
     for (int i = 0; i < HEAT_SOURCE_SIZE; i++) {
         gIntensity_h_[heatSource[i]] = 1.0;
     }
@@ -145,12 +171,15 @@ void startHeatTransfer() {
         }
 
         /* allocate data */
-        // gIntensity_h_ = (float*)malloc(gNumObjects * sizeof(float));
         HANDLE_ERROR(cudaHostAlloc((void**)&gIntensity_h_, gNumObjects * sizeof(float*), cudaHostAllocDefault));
         HANDLE_ERROR(cudaMalloc((void**)&gIntensityIn_d_, gNumObjects * sizeof(float)));
         HANDLE_ERROR(cudaMalloc((void**)&gIntensityOut_d_, gNumObjects * sizeof(float)));
+
+        #if STEAM_GPU
+            HANDLE_ERROR( cudaStreamCreate( &stream1 ) );
+        #endif
         #if TEXTURE_GPU
-        HANDLE_ERROR(cudaBindTexture(NULL, texIn, gIntensityIn_d_, gNumObjects * sizeof(float)));
+            HANDLE_ERROR(cudaBindTexture(NULL, texIn, gIntensityIn_d_, gNumObjects * sizeof(float)));
         #endif
         printf("--> Intensity memory has been allocated.\n");
 
@@ -177,10 +206,13 @@ void startHeatTransfer() {
 
 
 void quit_heatTransfer() {
-    // free(gIntensity_h_);
+
     HANDLE_ERROR(cudaFree(gIntensity_h_));
+    #if STEAM_GPU
+        HANDLE_ERROR( cudaStreamDestroy( stream1 ) );
+    #endif
     #if TEXTURE_GPU
-    HANDLE_ERROR(cudaUnbindTexture(texIn));
+        HANDLE_ERROR(cudaUnbindTexture(texIn));
     #endif
     HANDLE_ERROR(cudaFree(gIntensityIn_d_));
     HANDLE_ERROR(cudaFree(gIntensityOut_d_));

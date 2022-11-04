@@ -58,8 +58,12 @@ __global__ void
 createAABBHierarchy_Kernel(int num_objects, Node* leafNodes, Node* internalNodes);
 
 __global__ void 
-NbInfoScan_Kernel(std::uint32_t num_object, int max_buffer_size , AABB* aabbs, Node* internalNodes, 
-    std::uint32_t* adjObjectsOut, std::uint32_t* sortedObjectIDs, std::uint32_t* adjObjNums);
+NbInfoScan_Kernel_First(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, 
+        std::uint32_t* adjObjNums, std::uint32_t* adjObjectsOut, std::uint32_t* prefix_sum);
+
+__global__ void 
+NbInfoScan_Kernel_Second(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, 
+        std::uint32_t* adjObjNums, std::uint32_t* adjObjectsOut, std::uint32_t* prefix_sum);
 
 struct minUnaryFunc{
     __host__ __device__
@@ -324,17 +328,13 @@ BVH::getNbInfo() {
     adjObjNumList_d_.resize(num_objects);
     std::uint32_t* adjObjNumList_d_rawPtr = thrust::raw_pointer_cast(adjObjNumList_d_.data());
 
-    /* temparory buffer used to store the adjacent neighbour */
-    int max_buffer_size = 20;
-    std::uint32_t* adjObjectIDsListOut;
-    HANDLE_ERROR(cudaHostAlloc((void**)(&adjObjectIDsListOut), num_objects * max_buffer_size * sizeof(std::uint32_t), cudaMemcpyDefault));
-
     /* kernel property */
     int threadsPerBlock = 256;
     int blocksPerGrid = (num_objects + threadsPerBlock - 1) / threadsPerBlock;
-    std::uint32_t* sortedObjectIDs_d_raw_ptr = thrust::raw_pointer_cast(sortedObjectIDs_d_.data());
-    NbInfoScan_Kernel<<<blocksPerGrid, threadsPerBlock>>>
-            (num_objects, max_buffer_size, aabbs_d_, internalNodes, adjObjectIDsListOut, sortedObjectIDs_d_raw_ptr, adjObjNumList_d_rawPtr);
+
+    /* first to get object number for exlusive scan */
+    NbInfoScan_Kernel_First<<<blocksPerGrid, threadsPerBlock>>>
+            (num_objects, aabbs_d_, internalNodes, adjObjNumList_d_rawPtr, nullptr, nullptr);
     HANDLE_ERROR(cudaDeviceSynchronize());
 
     adjObjNumList_h_ = adjObjNumList_d_;
@@ -343,7 +343,6 @@ BVH::getNbInfo() {
     num_adjObjects = 0;
     for (int i = 0; i < num_objects; i++) {
         num_adjObjects += adjObjNumList_raw_ptr[i];
-        // printf("%d ", adjObjNumList_raw_ptr[i]);
     }
     // num_adjObjects = thrust::reduce(adjObjNumList_d_.begin(), adjObjNumList_d_.end(), 0, thrust::plus<std::uint32_t>());
     printf("--> Triangles: %u, AdjTriangles: %u\n", num_objects, num_adjObjects);
@@ -357,19 +356,12 @@ BVH::getNbInfo() {
 
     /* copy data from deivce to host */
     scan_res_h_ = scan_res_d_;
-    std::uint32_t* scan_res_raw_ptr = thrust::raw_pointer_cast(scan_res_h_.data());
-    /* wait for data preparation */
-    HANDLE_ERROR(cudaDeviceSynchronize());
+    std::uint32_t* scan_res_d_rawPtr = thrust::raw_pointer_cast(scan_res_d_.data());
 
-    for (int i = 0; i < num_objects; i++) {
-        HANDLE_ERROR(cudaMemcpyAsync(adjObjInfo_d_ + scan_res_raw_ptr[i] /* dst offset */, 
-                                adjObjectIDsListOut + max_buffer_size * i /* src offset */, 
-                                adjObjNumList_raw_ptr[i] * sizeof(std::uint32_t) /* data size */, 
-                                cudaMemcpyDeviceToDevice)
-                                );
-    }
-    /* release temporary buffer memory */
-    HANDLE_ERROR(cudaFreeHost(adjObjectIDsListOut));
+    /* second to get objects id and store them to right position */
+    NbInfoScan_Kernel_Second<<<blocksPerGrid, threadsPerBlock>>>
+            (num_objects, aabbs_d_, internalNodes, adjObjNumList_d_rawPtr, adjObjInfo_d_, scan_res_d_rawPtr);
+    HANDLE_ERROR(cudaDeviceSynchronize());
 
     TIMING_END("--> Finding adjacent nodes cost:")
     bvh_status = BVH_STATUS::STATE_PROPAGATE;
@@ -602,20 +594,34 @@ createAABBHierarchy_Kernel(int num_objects, Node* leafNodes, Node* internalNodes
 
 
 __global__ void 
-NbInfoScan_Kernel(std::uint32_t num_object, int max_buffer_size , AABB* aabbs, Node* internalNodes, 
-    std::uint32_t* adjObjectsOut, std::uint32_t* sortedObjectIDs, std::uint32_t* adjObjNums) {
+NbInfoScan_Kernel_First(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, 
+        std::uint32_t* adjObjNums, std::uint32_t* adjObjectsOut, std::uint32_t* prefix_sum) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx > num_object - 1) {
         return;
     }
 
     /* query for each object's neighbour */
-    std::uint32_t adjObjNum = lbvh::query_device(aabbs + idx, 
-                                                internalNodes, 
-                                                adjObjectsOut + idx * max_buffer_size, 
-                                                max_buffer_size);
+    std::uint32_t adjObjNum = lbvh::query_device(aabbs + idx, internalNodes, nullptr, true);
     adjObjNums[idx] = adjObjNum;
+
 }
+
+__global__ void 
+NbInfoScan_Kernel_Second(std::uint32_t num_object, AABB* aabbs, Node* internalNodes, 
+        std::uint32_t* adjObjNums, std::uint32_t* adjObjectsOut, std::uint32_t* prefix_sum) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx > num_object - 1) {
+        return;
+    }
+
+    /* query for each object's neighbour */
+    lbvh::query_device(aabbs + idx, internalNodes, 
+                        adjObjectsOut + prefix_sum[idx], 
+                        false,
+                        adjObjNums[idx]);    
+}
+
 
 
 void cudaDevInfo() {
